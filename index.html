@@ -92,13 +92,16 @@
   .add-col button { width: 100%; background: var(--white); border: 1.5px dashed var(--border); color: var(--muted); padding: 12px; border-radius: 12px; font-size: 14.5px; }
   .add-col button:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
 
-  .task { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 13px; cursor: pointer; font-size: 15px; touch-action: pan-y; user-select: none; transition: box-shadow .12s; }
+  .task { position: relative; background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 40px 12px 13px; cursor: pointer; font-size: 15px; touch-action: pan-y; user-select: none; transition: box-shadow .12s; }
   .task:hover { box-shadow: 0 2px 8px -3px rgba(22,35,63,0.18); }
   .task.dragging-source { opacity: .35; }
   .task.overdue { border-left-color: var(--brown); }
   .task.due-today { border-left-color: var(--blue); }
-  .task .title { font-weight: 600; color: var(--ink); margin-bottom: 4px; line-height: 1.35; }
+  .task .title { font-weight: 600; color: var(--ink); margin-bottom: 4px; line-height: 1.35; padding-right: 4px; }
   .task.done-task .title { text-decoration: line-through; color: var(--muted); }
+  .task-complete-btn { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--white); color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; flex-shrink: 0; transition: background .15s, border-color .15s, color .15s; }
+  .task-complete-btn:hover { background: var(--blue); border-color: var(--blue); color: var(--white); }
+  .task.done-task .task-complete-btn { display: none; }
   .task .note-preview { color: var(--muted); font-size: 13.5px; margin-bottom: 6px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip-row:empty { display: none; }
@@ -632,6 +635,23 @@ function spawnNextRecurrence(task){
   tasks.push(next);
 }
 
+// botao de concluir direto no card: manda a tarefa pra primeira coluna
+// marcada como "conta como concluida" (mesmo efeito de arrastar ate la),
+// e dispara a recorrencia se a tarefa repete.
+async function completeTask(taskId){
+  const doneCol = columns.find(c => c.done);
+  if(!doneCol){ showToast('Nenhuma coluna marcada como "conta como concluída" ainda.', true); return; }
+  const task = taskById(taskId);
+  if(!task || task.columnId === doneCol.id) return;
+  const before = Object.assign({}, task);
+  const tasksBefore = tasks.length;
+  task.columnId = doneCol.id;
+  task.movedAt = new Date().toISOString();
+  applyColumnCompletion(task, doneCol.id);
+  await persistTasks(() => { Object.assign(task, before); tasks.length = tasksBefore; });
+  render();
+}
+
 function switchView(view){
   activeView = view;
   document.getElementById('tab-kanban').classList.toggle('active', view === 'kanban');
@@ -710,7 +730,10 @@ function renderBoard(){
         (task.recurrence ? '<span class="due-chip" title="Repete: ' + escapeHtml(RECURRENCE_LABELS[task.recurrence] || task.recurrence) + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>' +
           '</span>' : '') +
-        '</div>';
+        '</div>' +
+        (col.done ? '' : '<button class="task-complete-btn" data-id="' + task.id + '" title="Concluir">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</button>');
       initTaskDrag(el, task);
       body.appendChild(el);
     });
@@ -730,6 +753,10 @@ function renderBoard(){
     inp.addEventListener('dblclick', () => openColumnModal(inp.dataset.id));
     inp.addEventListener('change', () => renameColumn(inp.dataset.id, inp.value));
   });
+  board.querySelectorAll('.task-complete-btn').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    completeTask(btn.dataset.id);
+  }));
 
   const flag = document.getElementById('overdue-flag');
   document.getElementById('overdue-count').textContent = overdueCount;
