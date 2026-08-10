@@ -55,14 +55,12 @@
   .btn-link { background: none; border: none; color: var(--blue); font-weight: 700; font-size: 14.5px; cursor: pointer; padding: 0; }
   .btn-link:hover { text-decoration: underline; }
 
-  .capture-wrap { padding: 16px 20px 4px; }
-  .capture-bar { display: flex; gap: 8px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 16px; box-shadow: 0 2px 10px -4px rgba(22,35,63,0.12); max-width: 720px; margin: 0 auto; align-items: center; flex-wrap: wrap; }
-  .capture-bar svg.plus-icon { color: var(--blue); flex-shrink: 0; }
-  .capture-bar input { flex: 1; min-width: 160px; border: none; outline: none; font-size: 17px; padding: 10px 0; background: none; color: var(--ink); font-family: inherit; }
-  .capture-bar input::placeholder { color: var(--muted); }
-
   .capture-note-row { display: flex; gap: 8px; align-items: flex-start; }
   .capture-note-row textarea { flex: 1; }
+
+  .fab-add-btn { position: fixed; right: 24px; bottom: 24px; width: 58px; height: 58px; border-radius: 50%; background: var(--blue); color: var(--white); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px -6px rgba(22,35,63,0.45); cursor: pointer; z-index: 90; border: none; padding: 0; }
+  .fab-add-btn:hover { filter: brightness(1.08); }
+  .fab-add-btn:active { transform: scale(0.96); }
 
   .board-wrap { padding: 18px 20px 24px; }
   .board { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; align-items: stretch; height: calc(100vh - 220px); min-height: 320px; cursor: grab; scrollbar-width: thin; scrollbar-color: rgba(22,35,63,0.2) transparent; }
@@ -83,6 +81,9 @@
   .col-count { font-size: 13px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
   .col-del { background: none; border: none; color: rgba(22,35,63,0.35); cursor: pointer; font-size: 16px; padding: 2px 4px; }
   .col-del:hover { color: var(--brown); }
+  /* so aparece no celular (ver media query no fim do arquivo): alterna
+     coluna expandida/recolhida sem disputar clique com o campo de nome */
+  .col-toggle-btn { display: none; align-items: center; justify-content: center; background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; transition: transform .15s; }
   .col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; min-height: 60px; scrollbar-width: thin; scrollbar-color: rgba(22,35,63,0.16) transparent; }
   .col-body::-webkit-scrollbar { width: 6px; }
   .col-body::-webkit-scrollbar-thumb { background: rgba(22,35,63,0.16); border-radius: 3px; }
@@ -170,8 +171,15 @@
   @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(140,100,73,0.4); } 50% { box-shadow: 0 0 0 9px rgba(140,100,73,0); } }
 
   @media (max-width: 640px) {
-    .board { height: calc(100vh - 240px); }
-    .col { min-width: 82vw; max-width: 82vw; }
+    /* no celular, o quadro vira uma lista de colunas recolhidas (so o
+       cabecalho), empilhadas em uma tela so, sem rolar pros lados. Clicar
+       no cabecalho expande aquela coluna e mostra as tarefas dela. */
+    .board { flex-direction: column; height: auto; overflow: visible; cursor: default; padding-bottom: 90px; }
+    .col { min-width: 100%; max-width: 100%; }
+    .col-toggle-btn { display: flex; }
+    .col-body { display: none; }
+    .col.expanded .col-body { display: flex; }
+    .col.expanded .col-toggle-btn { transform: rotate(180deg); }
   }
 </style>
 </head>
@@ -204,17 +212,6 @@
 </div>
 
 <div id="kanban-view">
-  <div class="capture-wrap" id="capture-wrap">
-    <div class="capture-bar">
-      <svg class="plus-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <input type="text" id="capture-input" placeholder="O que você precisa lembrar de fazer? Escreva e aperte Enter...">
-      <button class="mic-btn" id="capture-mic-btn" type="button" title="Ditar por voz">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </button>
-      <button class="btn-accent" id="capture-btn">Adicionar</button>
-    </div>
-  </div>
-
   <div class="board-toolbar" id="board-toolbar">
     <input type="date" id="day-filter-input">
     <span class="day-filter-label" id="day-filter-label"></span>
@@ -253,7 +250,15 @@
   <div class="modal">
     <h3 id="task-modal-title">Nova tarefa</h3>
     <input type="hidden" id="task-id">
-    <div class="field"><label>Título</label><input type="text" id="task-title" placeholder="O que precisa ser feito"></div>
+    <div class="field">
+      <label>Título</label>
+      <div class="capture-note-row">
+        <input type="text" id="task-title" placeholder="O que precisa ser feito">
+        <button class="mic-btn" id="task-title-mic-btn" type="button" title="Ditar por voz">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+      </div>
+    </div>
     <div class="field">
       <label>Nota</label>
       <div class="capture-note-row">
@@ -274,6 +279,17 @@
         <option value="media">Média</option>
         <option value="alta">Alta</option>
       </select></div>
+    </div>
+    <div class="field">
+      <label>Repetir</label>
+      <select id="task-recurrence">
+        <option value="">Não repete</option>
+        <option value="daily">Diariamente</option>
+        <option value="weekly">Semanalmente</option>
+        <option value="monthly">Mensalmente</option>
+        <option value="yearly">Anualmente</option>
+      </select>
+      <div class="hint">Ao concluir uma tarefa que repete, a próxima já entra automaticamente no quadro.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-danger" id="task-delete-btn" style="display:none;">Excluir</button>
@@ -296,6 +312,10 @@
     </div></div>
   </div>
 </div>
+
+<button class="fab-add-btn" id="fab-add-btn" title="Nova tarefa">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -321,6 +341,12 @@ const _fbDB = getFirestore(_fbApp);
 const DOC_REF = doc(_fbDB, 'atividades_app', 'main');
 
 function uid(prefix){ return (prefix||'x') + Date.now() + Math.floor(Math.random()*100000); }
+// data de hoje no fuso local (nao usar toISOString aqui, que converte pra
+// UTC e pode voltar um dia errado dependendo da hora/fuso).
+function todayDateStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 const DEFAULT_COLUMNS = [
@@ -381,6 +407,7 @@ let columns = JSON.parse(JSON.stringify(DEFAULT_COLUMNS)), tasks = [];
 let editingColumnId = null; // null = criando coluna nova
 let activeView = 'kanban';
 let dayFilter = '';
+let mobileExpandedColId = null; // coluna expandida no layout de celular (null = todas recolhidas)
 
 function columnById(id){ return columns.find(c => c.id === id); }
 function taskById(id){ return tasks.find(t => t.id === id); }
@@ -487,11 +514,46 @@ function formatDue(iso){
 // e o que alimenta a aba Produtividade.
 function applyColumnCompletion(task, colId){
   const col = columnById(colId);
+  const wasCompleted = !!task.completedAt;
   if(col && col.done){
     if(!task.completedAt) task.completedAt = new Date().toISOString();
   } else {
     task.completedAt = null;
   }
+  // se a tarefa acabou de ser concluida (nao estava antes) e ela repete,
+  // cria a proxima ocorrencia ja no quadro
+  if(!wasCompleted && task.completedAt && task.recurrence){
+    spawnNextRecurrence(task);
+  }
+}
+
+function nextDueDate(dueAt, recurrence){
+  if(!dueAt) return null;
+  const d = new Date(dueAt);
+  if(recurrence === 'daily') d.setDate(d.getDate() + 1);
+  else if(recurrence === 'weekly') d.setDate(d.getDate() + 7);
+  else if(recurrence === 'monthly') d.setMonth(d.getMonth() + 1);
+  else if(recurrence === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString();
+}
+
+// cria a proxima ocorrencia de uma tarefa recorrente, de volta na primeira
+// coluna do quadro, com o vencimento avancado conforme a repeticao.
+function spawnNextRecurrence(task){
+  const now = new Date().toISOString();
+  const next = {
+    id: uid('t'),
+    title: task.title,
+    note: task.note,
+    columnId: columns[0].id,
+    dueAt: task.dueAt ? nextDueDate(task.dueAt, task.recurrence) : null,
+    urgency: task.urgency,
+    recurrence: task.recurrence,
+    createdAt: now, movedAt: now,
+    notifiedDue: false, notifiedOverdue: false,
+    completedAt: null
+  };
+  tasks.push(next);
 }
 
 function switchView(view){
@@ -521,7 +583,7 @@ function renderBoard(){
 
   columns.forEach(col => {
     const colEl = document.createElement('div');
-    colEl.className = 'col';
+    colEl.className = 'col' + (mobileExpandedColId === col.id ? ' expanded' : '');
     colEl.dataset.colId = col.id;
 
     const items = tasks.filter(t => t.columnId === col.id)
@@ -534,8 +596,20 @@ function renderBoard(){
       '<span class="col-dot"></span>' +
       '<input class="col-title" data-id="' + col.id + '" value="' + escapeHtml(col.label) + '">' +
       '<span class="col-count">' + items.length + '</span>' +
+      '<button class="col-toggle-btn" data-id="' + col.id + '" title="Expandir/recolher">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+      '</button>' +
       '<button class="col-del" data-id="' + col.id + '" title="Excluir coluna">&times;</button>';
     colEl.appendChild(head);
+    // botao dedicado em vez de clicar em qualquer lugar do cabecalho: o
+    // campo de nome ocupa quase toda a largura e ja usa stopPropagation
+    // pro clique dele (foco pra editar), entao um alvo separado evita
+    // que um toque no titulo tente expandir/recolher ao mesmo tempo.
+    head.querySelector('.col-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      mobileExpandedColId = (mobileExpandedColId === col.id) ? null : col.id;
+      render();
+    });
 
     const body = document.createElement('div');
     body.className = 'col-body';
@@ -557,6 +631,9 @@ function renderBoard(){
         (task.dueAt ? '<span class="due-chip' + (state === 'overdue' ? ' overdue' : '') + (state === 'today' ? ' today' : '') + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
           escapeHtml(formatDue(task.dueAt)) + '</span>' : '') +
+        (task.recurrence ? '<span class="due-chip" title="Repete: ' + escapeHtml(RECURRENCE_LABELS[task.recurrence] || task.recurrence) + '">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>' +
+          '</span>' : '') +
         '</div>';
       initTaskDrag(el, task);
       body.appendChild(el);
@@ -585,6 +662,7 @@ function renderBoard(){
 
 // ---- produtividade: total, sequencia, grafico de colunas e pizza por urgencia
 const URGENCY_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+const RECURRENCE_LABELS = { daily: 'diariamente', weekly: 'semanalmente', monthly: 'mensalmente', yearly: 'anualmente' };
 const URGENCY_COLORS = { alta: '#8C6449', media: '#4F8FE0', baixa: 'rgba(22,35,63,0.35)', none: 'rgba(22,35,63,0.14)' };
 
 function formatDayLabel(d){
@@ -767,10 +845,11 @@ function initTaskDrag(card, task){
           const liveTask = tasks.find(t => t.id === task.id);
           if(liveTask && liveTask.columnId !== colId){
             const before = Object.assign({}, liveTask);
+            const tasksBefore = tasks.length;
             liveTask.columnId = colId;
             liveTask.movedAt = new Date().toISOString();
             applyColumnCompletion(liveTask, colId);
-            await persistTasks(() => Object.assign(liveTask, before));
+            await persistTasks(() => { Object.assign(liveTask, before); tasks.length = tasksBefore; });
             render();
           }
         }
@@ -826,11 +905,17 @@ function openTaskModal(taskId, prefillTitle){
   document.getElementById('task-title').value = task ? task.title : (prefillTitle || '');
   document.getElementById('task-note').value = task ? (task.note || '') : '';
   document.getElementById('task-urgency').value = task ? (task.urgency || 'media') : 'media';
+  document.getElementById('task-recurrence').value = task ? (task.recurrence || '') : '';
   if(task && task.dueAt){
     const d = new Date(task.dueAt);
     document.getElementById('task-due-date').value = d.toISOString().slice(0,10);
     document.getElementById('task-due-time').value = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  } else if(!task){
+    // tarefa nova: ja vem com a data de hoje selecionada, so falta a hora
+    document.getElementById('task-due-date').value = todayDateStr();
+    document.getElementById('task-due-time').value = '';
   } else {
+    // tarefa existente sem vencimento: nao inventa uma data ao editar
     document.getElementById('task-due-date').value = '';
     document.getElementById('task-due-time').value = '';
   }
@@ -851,28 +936,30 @@ async function saveTask(){
   const timeVal = document.getElementById('task-due-time').value;
   const columnId = document.getElementById('task-column').value;
   const urgency = document.getElementById('task-urgency').value || 'media';
+  const recurrence = document.getElementById('task-recurrence').value || null;
   let dueAt = null;
   if(dateVal){
     dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
   }
 
   let rollback;
+  const tasksBefore = tasks.length;
   if(id){
     const task = taskById(id);
     const before = Object.assign({}, task);
     const columnChanged = task.columnId !== columnId;
     const dueChanged = task.dueAt !== dueAt;
-    Object.assign(task, { title, note, columnId, dueAt, urgency, updatedAt: new Date().toISOString() });
+    Object.assign(task, { title, note, columnId, dueAt, urgency, recurrence, updatedAt: new Date().toISOString() });
     if(columnChanged) task.movedAt = new Date().toISOString();
     if(dueChanged){ task.notifiedDue = false; task.notifiedOverdue = false; }
     applyColumnCompletion(task, columnId);
-    rollback = () => Object.assign(task, before);
+    rollback = () => { Object.assign(task, before); tasks.length = tasksBefore; };
   } else {
     const now = new Date().toISOString();
-    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
-    applyColumnCompletion(newTask, columnId);
+    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, recurrence, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
     tasks.push(newTask);
-    rollback = () => { tasks = tasks.filter(t => t.id !== newTask.id); };
+    applyColumnCompletion(newTask, columnId);
+    rollback = () => { tasks.length = tasksBefore; };
   }
   const ok = await persistTasks(rollback);
   if(!ok) return;
@@ -888,17 +975,6 @@ async function deleteTask(){
   if(!ok) return;
   closeTaskModal();
   render();
-}
-
-// clicar em "Adicionar" (ou apertar Enter) na captura rapida abre direto o
-// modal completo de tarefa, ja com o titulo preenchido, pra dar prazo,
-// nota e urgencia antes de salvar. E o mesmo modal usado pra editar depois.
-function openCaptureModal(){
-  const input = document.getElementById('capture-input');
-  const title = input.value.trim();
-  if(!title){ input.focus(); return; }
-  openTaskModal(null, title);
-  input.value = '';
 }
 
 // ---- colunas -------------------------------------------------------------
@@ -1058,8 +1134,10 @@ function attachVoiceInput(btn, targetEl){
 function bindStaticEvents(){
   initBoardPan(document.getElementById('board'));
 
-  attachVoiceInput(document.getElementById('capture-mic-btn'), document.getElementById('capture-input'));
+  attachVoiceInput(document.getElementById('task-title-mic-btn'), document.getElementById('task-title'));
   attachVoiceInput(document.getElementById('task-note-mic-btn'), document.getElementById('task-note'));
+
+  document.getElementById('fab-add-btn').addEventListener('click', () => openTaskModal(null));
 
   document.getElementById('tab-kanban').addEventListener('click', () => switchView('kanban'));
   document.getElementById('tab-productivity').addEventListener('click', () => switchView('productivity'));
@@ -1071,9 +1149,6 @@ function bindStaticEvents(){
     document.getElementById('day-filter-input').value = '';
     render();
   });
-
-  document.getElementById('capture-btn').addEventListener('click', openCaptureModal);
-  document.getElementById('capture-input').addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); openCaptureModal(); } });
 
   document.getElementById('task-cancel-btn').addEventListener('click', closeTaskModal);
   document.getElementById('task-save-btn').addEventListener('click', saveTask);
