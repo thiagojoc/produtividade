@@ -56,10 +56,16 @@
   .btn-link:hover { text-decoration: underline; }
 
   .capture-wrap { padding: 16px 20px 4px; }
-  .capture-bar { display: flex; gap: 10px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 16px; box-shadow: 0 2px 10px -4px rgba(22,35,63,0.12); max-width: 720px; margin: 0 auto; align-items: center; }
-  .capture-bar svg { color: var(--blue); flex-shrink: 0; }
-  .capture-bar input { flex: 1; border: none; outline: none; font-size: 17px; padding: 10px 0; background: none; color: var(--ink); font-family: inherit; }
+  .capture-bar { display: flex; gap: 8px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 16px; box-shadow: 0 2px 10px -4px rgba(22,35,63,0.12); max-width: 720px; margin: 0 auto; align-items: center; flex-wrap: wrap; }
+  .capture-bar svg.plus-icon { color: var(--blue); flex-shrink: 0; }
+  .capture-bar input { flex: 1; min-width: 160px; border: none; outline: none; font-size: 17px; padding: 10px 0; background: none; color: var(--ink); font-family: inherit; }
   .capture-bar input::placeholder { color: var(--muted); }
+
+  .capture-extra { display: none; max-width: 720px; margin: 10px auto 0; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .capture-extra.show { display: block; }
+  .capture-extra .field-row { align-items: flex-end; }
+  .capture-note-row { display: flex; gap: 8px; align-items: flex-start; }
+  .capture-note-row textarea { flex: 1; }
 
   .board-wrap { padding: 18px 20px 24px; }
   .board { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; align-items: stretch; height: calc(100vh - 220px); min-height: 320px; cursor: grab; scrollbar-width: thin; scrollbar-color: rgba(22,35,63,0.2) transparent; }
@@ -96,9 +102,15 @@
   .task .title { font-weight: 600; color: var(--ink); margin-bottom: 4px; line-height: 1.35; }
   .task.done-task .title { text-decoration: line-through; color: var(--muted); }
   .task .note-preview { color: var(--muted); font-size: 13.5px; margin-bottom: 6px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip-row:empty { display: none; }
   .due-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--navy-soft); color: var(--muted); }
   .due-chip.overdue { background: var(--brown-light); color: var(--brown); }
   .due-chip.today { background: var(--blue-light); color: var(--blue); }
+  .urgency-chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+  .urgency-chip.urgency-baixa { background: var(--navy-soft); color: var(--muted); }
+  .urgency-chip.urgency-media { background: var(--blue-light); color: var(--blue); }
+  .urgency-chip.urgency-alta { background: var(--brown-light); color: var(--brown); }
   .drag-ghost { position: fixed; z-index: 100; pointer-events: none; opacity: .95; box-shadow: 0 18px 40px -10px rgba(22,35,63,0.35); transform: rotate(-1.5deg); }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(22,35,63,0.35); display: none; align-items: center; justify-content: center; z-index: 40; overflow-y: auto; padding: 30px 0; }
@@ -133,19 +145,32 @@
   input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { cursor: pointer; }
   .day-filter-label { font-size: 14px; color: var(--muted); }
 
-  .prod-wrap { display: none; padding: 20px; max-width: 760px; margin: 0 auto; }
-  .prod-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
-  .prod-toolbar select { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; }
-  .prod-summary { background: var(--navy); color: var(--white); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; }
-  .prod-summary-num { font-size: 36px; font-weight: 700; font-family: ui-serif, Georgia, serif; color: var(--blue); }
-  .prod-summary-lbl { font-size: 14px; color: rgba(255,255,255,0.7); margin-top: 4px; }
-  .prod-list { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 6px 18px; }
-  .prod-row { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--border); }
-  .prod-row:last-child { border-bottom: none; }
-  .prod-date { width: 100px; font-size: 14px; color: var(--ink); font-weight: 600; flex-shrink: 0; text-transform: capitalize; }
-  .prod-bar-track { flex: 1; background: var(--navy-soft); border-radius: 6px; height: 20px; overflow: hidden; }
-  .prod-bar-fill { background: var(--blue); height: 100%; border-radius: 6px; transition: width .25s; }
-  .prod-count { width: 30px; text-align: right; font-weight: 700; font-size: 14.5px; color: var(--ink); flex-shrink: 0; }
+  .prod-wrap { display: none; padding: 24px 20px 32px; max-width: 960px; margin: 0 auto; }
+  .prod-toolbar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+  .prod-toolbar select { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; cursor: pointer; }
+  .prod-stats { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .prod-stat { flex: 1; min-width: 160px; background: var(--navy); color: var(--white); border-radius: 14px; padding: 18px 20px; }
+  .prod-stat-num { font-size: 30px; font-weight: 700; font-family: ui-serif, Georgia, serif; color: var(--blue); }
+  .prod-stat-lbl { font-size: 13px; color: rgba(255,255,255,0.72); margin-top: 4px; }
+  .prod-charts { display: flex; gap: 16px; flex-wrap: wrap; }
+  .prod-card { flex: 1; min-width: 320px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .prod-card h4 { margin: 0 0 16px; font-size: 15px; color: var(--ink); }
+  .bar-chart-wrap { overflow-x: auto; }
+  .pie-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .pie-legend { display: flex; flex-direction: column; gap: 9px; }
+  .pie-legend-item { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); }
+  .pie-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .prod-empty { color: var(--muted); font-size: 13.5px; padding: 34px 0; text-align: center; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--navy); color: var(--white); padding: 12px 20px; border-radius: 10px; font-size: 14px; box-shadow: 0 14px 34px -10px rgba(22,35,63,0.45); z-index: 200; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--brown); }
+
+  .mic-btn { background: var(--navy-soft); border: 1px solid var(--border); color: var(--ink); width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; flex-shrink: 0; }
+  .mic-btn:hover { background: var(--blue-light); color: var(--blue); }
+  .mic-btn.listening { background: var(--brown); border-color: var(--brown); color: var(--white); animation: micPulse 1.2s infinite; }
+  .mic-btn.hidden { display: none; }
+  @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(140,100,73,0.4); } 50% { box-shadow: 0 0 0 9px rgba(140,100,73,0); } }
 
   @media (max-width: 640px) {
     .board { height: calc(100vh - 240px); }
@@ -154,6 +179,8 @@
 </style>
 </head>
 <body>
+
+<div class="toast" id="toast"></div>
 
 <div class="notif-banner" id="notif-banner">
   <span>Ative as notificações pra saber quando uma tarefa vencer ou atrasar.</span>
@@ -164,7 +191,6 @@
 
 <header class="top">
   <div class="brand">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#4F8FE0"/><path d="M7 12l3 3 7-7" stroke="#16233F" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     Gestão de atividades
   </div>
   <span class="today" id="today-label"></span>
@@ -183,9 +209,41 @@
 <div id="kanban-view">
   <div class="capture-wrap" id="capture-wrap">
     <div class="capture-bar">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg class="plus-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <input type="text" id="capture-input" placeholder="O que você precisa lembrar de fazer? Escreva e aperte Enter...">
+      <button class="mic-btn" id="capture-mic-btn" type="button" title="Ditar por voz">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <button class="btn-secondary btn-sm" id="capture-toggle-btn" type="button">Mais opções</button>
       <button class="btn-accent" id="capture-btn">Adicionar</button>
+    </div>
+    <div class="capture-extra" id="capture-extra">
+      <div class="field-row">
+        <div class="field">
+          <label>Prazo</label>
+          <div class="field-row">
+            <input type="date" id="capture-due-date">
+            <input type="time" id="capture-due-time">
+          </div>
+        </div>
+        <div class="field">
+          <label>Urgência</label>
+          <select id="capture-urgency">
+            <option value="baixa">Baixa</option>
+            <option value="media" selected>Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notas</label>
+        <div class="capture-note-row">
+          <textarea id="capture-note" placeholder="Detalhes, contexto, o que veio na demanda..."></textarea>
+          <button class="mic-btn" id="capture-note-mic-btn" type="button" title="Ditar por voz">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -203,14 +261,24 @@
 <div class="prod-wrap" id="view-productivity">
   <div class="prod-toolbar">
     <select id="prod-period">
-      <option value="7">Últimos 7 dias</option>
       <option value="14" selected>Últimos 14 dias</option>
       <option value="30">Últimos 30 dias</option>
       <option value="90">Últimos 90 dias</option>
     </select>
   </div>
-  <div class="prod-summary" id="prod-summary"></div>
-  <div class="prod-list" id="prod-list"></div>
+
+  <div class="prod-stats" id="prod-stats"></div>
+
+  <div class="prod-charts">
+    <div class="prod-card">
+      <h4>Tarefas concluídas por período</h4>
+      <div id="prod-bar-chart"></div>
+    </div>
+    <div class="prod-card">
+      <h4>Concluídas por urgência</h4>
+      <div id="prod-pie-chart"></div>
+    </div>
+  </div>
 </div>
 
 <div class="modal-bg" id="task-modal-bg">
@@ -218,12 +286,27 @@
     <h3 id="task-modal-title">Nova tarefa</h3>
     <input type="hidden" id="task-id">
     <div class="field"><label>Título</label><input type="text" id="task-title" placeholder="O que precisa ser feito"></div>
-    <div class="field"><label>Nota</label><textarea id="task-note" placeholder="Detalhes, contexto, o que veio na demanda..."></textarea></div>
+    <div class="field">
+      <label>Nota</label>
+      <div class="capture-note-row">
+        <textarea id="task-note" placeholder="Detalhes, contexto, o que veio na demanda..."></textarea>
+        <button class="mic-btn" id="task-note-mic-btn" type="button" title="Ditar por voz">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+      </div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Vencimento</label><input type="date" id="task-due-date"></div>
       <div class="field"><label>Hora</label><input type="time" id="task-due-time"></div>
     </div>
-    <div class="field"><label>Coluna</label><select id="task-column"></select></div>
+    <div class="field-row">
+      <div class="field"><label>Coluna</label><select id="task-column"></select></div>
+      <div class="field"><label>Urgência</label><select id="task-urgency">
+        <option value="baixa">Baixa</option>
+        <option value="media">Média</option>
+        <option value="alta">Alta</option>
+      </select></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-danger" id="task-delete-btn" style="display:none;">Excluir</button>
       <div class="right">
@@ -253,7 +336,7 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstat
 /*
   App pessoal de gestão de atividades. Kanban simples: colunas configuráveis,
   tarefas com nota e vencimento opcional, captura rápida no topo. Sincroniza
-  via Firestore (mesmo projeto Firebase do painel FlowSales), sem login —
+  via Firestore (mesmo projeto Firebase do painel FlowSales), sem login:
   quem tem o link acessa. Documento único em atividades_app/main.
 */
 
@@ -323,13 +406,53 @@ const DB = {
   async saveTasks(list){ await _fbInit(); _fbData.tasks = list; await setDoc(DOC_REF, { tasks: list }, { merge: true }); }
 };
 
-let columns = [], tasks = [];
+// colunas comecam com o valor padrao (nao vazio) mesmo antes do Firestore
+// responder, pra tela nunca ficar num estado sem nenhuma coluna (o que
+// travava o botao Adicionar: ele lia columns[0].id e quebrava em silencio).
+let columns = JSON.parse(JSON.stringify(DEFAULT_COLUMNS)), tasks = [];
 let editingColumnId = null; // null = criando coluna nova
 let activeView = 'kanban';
 let dayFilter = '';
 
 function columnById(id){ return columns.find(c => c.id === id); }
 function taskById(id){ return tasks.find(t => t.id === id); }
+
+let toastTimer = null;
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// salva e, se der erro (rede, regra do Firestore ainda nao publicada, etc.),
+// desfaz a mudanca local e avisa em vez de falhar em silencio.
+async function persistTasks(rollbackFn){
+  try {
+    await DB.saveTasks(tasks);
+    return true;
+  } catch(err){
+    console.error('[Atividades] falha ao salvar tarefas:', err);
+    if(rollbackFn) rollbackFn();
+    showToast('Não foi possível salvar. Verifique sua conexão e tente de novo.', true);
+    render();
+    return false;
+  }
+}
+async function persistColumns(rollbackFn){
+  try {
+    await DB.saveColumns(columns);
+    return true;
+  } catch(err){
+    console.error('[Atividades] falha ao salvar colunas:', err);
+    if(rollbackFn) rollbackFn();
+    showToast('Não foi possível salvar. Verifique sua conexão e tente de novo.', true);
+    render();
+    return false;
+  }
+}
 
 async function boot(){
   // liga os botões/abas primeiro, antes de qualquer await: se o Firestore
@@ -340,10 +463,12 @@ async function boot(){
   render();
   initNotifications();
   try {
-    columns = await DB.getColumns();
+    const loadedColumns = await DB.getColumns();
+    if(loadedColumns && loadedColumns.length) columns = loadedColumns;
     tasks = await DB.getTasks();
   } catch(err){
     console.error('[Atividades] não foi possível carregar os dados salvos:', err);
+    showToast('Não deu pra carregar seus dados salvos agora. Verifique a conexão.', true);
   }
   render();
   DB.onUpdate(() => {
@@ -451,9 +576,12 @@ function renderBoard(){
       el.innerHTML =
         '<div class="title">' + escapeHtml(task.title) + '</div>' +
         (task.note ? '<div class="note-preview">' + escapeHtml(task.note) + '</div>' : '') +
+        '<div class="chip-row">' +
+        (task.urgency ? '<span class="urgency-chip urgency-' + task.urgency + '">' + escapeHtml(URGENCY_LABELS[task.urgency] || task.urgency) + '</span>' : '') +
         (task.dueAt ? '<span class="due-chip' + (state === 'overdue' ? ' overdue' : '') + (state === 'today' ? ' today' : '') + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
-          escapeHtml(formatDue(task.dueAt)) + '</span>' : '');
+          escapeHtml(formatDue(task.dueAt)) + '</span>' : '') +
+        '</div>';
       initTaskDrag(el, task);
       body.appendChild(el);
     });
@@ -479,49 +607,142 @@ function renderBoard(){
   flag.classList.toggle('show', overdueCount > 0);
 }
 
-// ---- produtividade: quantas tarefas foram concluidas por dia --------------
+// ---- produtividade: total, sequencia, grafico de colunas e pizza por urgencia
+const URGENCY_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+const URGENCY_COLORS = { alta: '#8C6449', media: '#4F8FE0', baixa: 'rgba(22,35,63,0.35)', none: 'rgba(22,35,63,0.14)' };
+
 function formatDayLabel(d){
   const today = new Date(); today.setHours(0,0,0,0);
   const diffDays = Math.round((today - d) / 86400000);
   if(diffDays === 0) return 'Hoje';
   if(diffDays === 1) return 'Ontem';
-  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function formatWeekLabel(start, end){
+  return start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' a ' +
+    end.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function statTile(num, label){
+  return '<div class="prod-stat"><div class="prod-stat-num">' + escapeHtml(String(num)) + '</div><div class="prod-stat-lbl">' + escapeHtml(label) + '</div></div>';
+}
+
+function buildBarChart(buckets){
+  const max = Math.max(1, ...buckets.map(b => b.count));
+  const n = buckets.length;
+  if(!n) return '<div class="prod-empty">Sem dados nesse período.</div>';
+  const barGap = 8;
+  const chartW = Math.max(360, n * 32);
+  const chartH = 190;
+  const padTop = 26, padBottom = 26;
+  const barW = (chartW - barGap * (n - 1)) / n;
+  let bars = '';
+  const labelStep = n <= 16 ? 1 : Math.ceil(n / 12);
+  buckets.forEach((b, i) => {
+    const h = Math.round((b.count / max) * (chartH - padTop - padBottom));
+    const x = i * (barW + barGap);
+    const y = chartH - padBottom - h;
+    bars += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + barW.toFixed(1) + '" height="' + Math.max(h, b.count > 0 ? 3 : 0) + '" rx="4" fill="#4F8FE0"></rect>';
+    if(b.count > 0){
+      bars += '<text x="' + (x + barW / 2).toFixed(1) + '" y="' + (y - 6) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#16233F">' + b.count + '</text>';
+    }
+    if(i % labelStep === 0){
+      bars += '<text x="' + (x + barW / 2).toFixed(1) + '" y="' + (chartH - 8) + '" text-anchor="middle" font-size="10" fill="rgba(22,35,63,0.56)">' + escapeHtml(b.label) + '</text>';
+    }
+  });
+  return '<div class="bar-chart-wrap"><svg viewBox="0 0 ' + chartW + ' ' + chartH + '" width="' + chartW + '" height="' + chartH + '">' + bars + '</svg></div>';
+}
+
+function buildUrgencyPie(counts, total){
+  if(total === 0) return '<div class="prod-empty">Nenhuma tarefa concluída nesse período.</div>';
+  const segments = ['alta', 'media', 'baixa', 'none']
+    .map(key => ({ key, label: key === 'none' ? 'Sem urgência' : URGENCY_LABELS[key], color: URGENCY_COLORS[key], count: counts[key] || 0 }))
+    .filter(s => s.count > 0);
+
+  const cx = 90, cy = 90, r = 80;
+  let paths = '';
+  if(segments.length === 1){
+    paths = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + segments[0].color + '"></circle>';
+  } else {
+    let cumulative = 0;
+    segments.forEach(seg => {
+      const startAngle = (cumulative / total) * 2 * Math.PI;
+      cumulative += seg.count;
+      const endAngle = (cumulative / total) * 2 * Math.PI;
+      const x1 = cx + r * Math.sin(startAngle), y1 = cy - r * Math.cos(startAngle);
+      const x2 = cx + r * Math.sin(endAngle), y2 = cy - r * Math.cos(endAngle);
+      const largeArc = (endAngle - startAngle) > Math.PI ? 1 : 0;
+      paths += '<path d="M' + cx + ',' + cy + ' L' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + largeArc + ' 1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z" fill="' + seg.color + '"></path>';
+    });
+  }
+
+  const legend = segments.map(seg => {
+    const pct = Math.round(seg.count / total * 100);
+    return '<div class="pie-legend-item"><span class="pie-legend-dot" style="background:' + seg.color + ';"></span>' + escapeHtml(seg.label) + ': ' + seg.count + ' (' + pct + '%)</div>';
+  }).join('');
+
+  return '<div class="pie-wrap"><svg viewBox="0 0 180 180" width="160" height="160">' + paths + '</svg><div class="pie-legend">' + legend + '</div></div>';
 }
 
 function renderProductivity(){
   const days = parseInt(document.getElementById('prod-period').value, 10) || 14;
-  const now = new Date();
-  const buckets = [];
-  for(let i = 0; i < days; i++){
-    const d = new Date(now);
-    d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - i);
-    buckets.push({ date: d, key: d.toISOString().slice(0,10), count: 0 });
-  }
-  const bucketByKey = {};
-  buckets.forEach(b => { bucketByKey[b.key] = b; });
+  const now = new Date(); now.setHours(0,0,0,0);
+  const groupByWeek = days > 30;
 
+  const buckets = [];
+  if(!groupByWeek){
+    for(let i = days - 1; i >= 0; i--){
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      buckets.push({ label: formatDayLabel(d), key: d.toISOString().slice(0, 10), count: 0 });
+    }
+  } else {
+    const weeks = Math.ceil(days / 7);
+    for(let w = weeks - 1; w >= 0; w--){
+      const end = new Date(now); end.setDate(end.getDate() - w * 7);
+      const start = new Date(end); start.setDate(start.getDate() - 6);
+      buckets.push({ label: formatWeekLabel(start, end), start, end, count: 0 });
+    }
+  }
+
+  const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - (days - 1));
+  const urgencyCounts = { alta: 0, media: 0, baixa: 0, none: 0 };
+  const dayHasCompletion = {};
   let total = 0;
+
   tasks.forEach(t => {
     if(!t.completedAt) return;
-    const key = t.completedAt.slice(0,10);
-    if(bucketByKey[key]){ bucketByKey[key].count++; total++; }
+    const completedDate = new Date(t.completedAt);
+    if(completedDate < cutoff) return;
+    total++;
+    const key = t.completedAt.slice(0, 10);
+    dayHasCompletion[key] = true;
+    const urg = (t.urgency && urgencyCounts.hasOwnProperty(t.urgency)) ? t.urgency : 'none';
+    urgencyCounts[urg]++;
+    if(!groupByWeek){
+      const bucket = buckets.find(b => b.key === key);
+      if(bucket) bucket.count++;
+    } else {
+      const bucket = buckets.find(b => completedDate >= b.start && completedDate <= b.end);
+      if(bucket) bucket.count++;
+    }
   });
 
-  const maxCount = Math.max(1, ...buckets.map(b => b.count));
-  const media = (total / days).toFixed(1);
-  document.getElementById('prod-summary').innerHTML =
-    '<div class="prod-summary-num">' + total + '</div>' +
-    '<div class="prod-summary-lbl">tarefa(s) concluída(s) nos últimos ' + days + ' dias — média de ' + media + ' por dia</div>';
+  let streak = 0;
+  for(let i = 0; i < 365; i++){
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    if(dayHasCompletion[d.toISOString().slice(0, 10)]) streak++;
+    else break;
+  }
 
-  document.getElementById('prod-list').innerHTML = buckets.map(b => {
-    const pct = b.count > 0 ? Math.max(6, Math.round(b.count / maxCount * 100)) : 0;
-    return '<div class="prod-row">' +
-      '<div class="prod-date">' + formatDayLabel(b.date) + '</div>' +
-      '<div class="prod-bar-track"><div class="prod-bar-fill" style="width:' + pct + '%;"></div></div>' +
-      '<div class="prod-count">' + b.count + '</div>' +
-    '</div>';
-  }).join('');
+  const media = (total / days).toFixed(1);
+  document.getElementById('prod-stats').innerHTML =
+    statTile(total, 'concluída(s) nos últimos ' + days + ' dias') +
+    statTile(media, 'em média por dia') +
+    statTile(streak, streak === 1 ? 'dia seguido com conclusão' : 'dias seguidos com conclusão');
+
+  document.getElementById('prod-bar-chart').innerHTML = buildBarChart(buckets);
+  document.getElementById('prod-pie-chart').innerHTML = buildUrgencyPie(urgencyCounts, total);
 }
 
 // ---- drag (mouse + toque) e clique no card ---------------------------
@@ -569,10 +790,11 @@ function initTaskDrag(card, task){
           const colId = col.dataset.colId;
           const liveTask = tasks.find(t => t.id === task.id);
           if(liveTask && liveTask.columnId !== colId){
+            const before = Object.assign({}, liveTask);
             liveTask.columnId = colId;
             liveTask.movedAt = new Date().toISOString();
             applyColumnCompletion(liveTask, colId);
-            await DB.saveTasks(tasks);
+            await persistTasks(() => Object.assign(liveTask, before));
             render();
           }
         }
@@ -627,6 +849,7 @@ function openTaskModal(taskId){
   document.getElementById('task-id').value = task ? task.id : '';
   document.getElementById('task-title').value = task ? task.title : '';
   document.getElementById('task-note').value = task ? (task.note || '') : '';
+  document.getElementById('task-urgency').value = task ? (task.urgency || 'media') : 'media';
   if(task && task.dueAt){
     const d = new Date(task.dueAt);
     document.getElementById('task-due-date').value = d.toISOString().slice(0,10);
@@ -650,46 +873,73 @@ async function saveTask(){
   const dateVal = document.getElementById('task-due-date').value;
   const timeVal = document.getElementById('task-due-time').value;
   const columnId = document.getElementById('task-column').value;
+  const urgency = document.getElementById('task-urgency').value || 'media';
   let dueAt = null;
   if(dateVal){
     dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
   }
 
+  let rollback;
   if(id){
     const task = taskById(id);
+    const before = Object.assign({}, task);
     const columnChanged = task.columnId !== columnId;
     const dueChanged = task.dueAt !== dueAt;
-    Object.assign(task, { title, note, columnId, dueAt, updatedAt: new Date().toISOString() });
+    Object.assign(task, { title, note, columnId, dueAt, urgency, updatedAt: new Date().toISOString() });
     if(columnChanged) task.movedAt = new Date().toISOString();
     if(dueChanged){ task.notifiedDue = false; task.notifiedOverdue = false; }
     applyColumnCompletion(task, columnId);
+    rollback = () => Object.assign(task, before);
   } else {
     const now = new Date().toISOString();
-    const newTask = { id: uid('t'), title, note, columnId, dueAt, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
+    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
     applyColumnCompletion(newTask, columnId);
     tasks.push(newTask);
+    rollback = () => { tasks = tasks.filter(t => t.id !== newTask.id); };
   }
-  await DB.saveTasks(tasks);
+  const ok = await persistTasks(rollback);
+  if(!ok) return;
   closeTaskModal();
   render();
 }
 
 async function deleteTask(){
   const id = document.getElementById('task-id').value;
+  const removed = taskById(id);
   tasks = tasks.filter(t => t.id !== id);
-  await DB.saveTasks(tasks);
+  const ok = await persistTasks(() => { if(removed) tasks.push(removed); });
+  if(!ok) return;
   closeTaskModal();
   render();
+}
+
+function resetCaptureExtra(){
+  document.getElementById('capture-note').value = '';
+  document.getElementById('capture-due-date').value = '';
+  document.getElementById('capture-due-time').value = '';
+  document.getElementById('capture-urgency').value = 'media';
+  document.getElementById('capture-extra').classList.remove('show');
+  document.getElementById('capture-toggle-btn').textContent = 'Mais opções';
 }
 
 async function quickCapture(){
   const input = document.getElementById('capture-input');
   const title = input.value.trim();
   if(!title) return;
+  const note = document.getElementById('capture-note').value.trim();
+  const dateVal = document.getElementById('capture-due-date').value;
+  const timeVal = document.getElementById('capture-due-time').value;
+  const urgency = document.getElementById('capture-urgency').value || 'media';
+  let dueAt = null;
+  if(dateVal) dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
+
   const now = new Date().toISOString();
-  tasks.push({ id: uid('t'), title, note: '', columnId: columns[0].id, dueAt: null, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false });
-  await DB.saveTasks(tasks);
+  const newTask = { id: uid('t'), title, note, columnId: columns[0].id, dueAt, urgency, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
+  tasks.push(newTask);
+  const ok = await persistTasks(() => { tasks = tasks.filter(t => t.id !== newTask.id); });
+  if(!ok) return;
   input.value = '';
+  resetCaptureExtra();
   render();
 }
 
@@ -709,13 +959,19 @@ async function saveColumn(){
   const name = document.getElementById('col-name-input').value.trim();
   if(!name) return;
   const done = document.getElementById('col-done-check').checked;
+  let rollback;
   if(editingColumnId){
     const col = columnById(editingColumnId);
+    const before = Object.assign({}, col);
     col.label = name; col.done = done;
+    rollback = () => Object.assign(col, before);
   } else {
-    columns.push({ id: uid('col'), label: name, done });
+    const newCol = { id: uid('col'), label: name, done };
+    columns.push(newCol);
+    rollback = () => { columns = columns.filter(c => c.id !== newCol.id); };
   }
-  await DB.saveColumns(columns);
+  const ok = await persistColumns(rollback);
+  if(!ok) return;
   closeColumnModal();
   render();
 }
@@ -724,7 +980,11 @@ async function renameColumn(colId, newLabel){
   newLabel = newLabel.trim();
   if(!newLabel){ render(); return; }
   const col = columnById(colId);
-  if(col && col.label !== newLabel){ col.label = newLabel; await DB.saveColumns(columns); }
+  if(col && col.label !== newLabel){
+    const before = col.label;
+    col.label = newLabel;
+    await persistColumns(() => { col.label = before; });
+  }
 }
 
 async function deleteColumn(colId){
@@ -732,10 +992,14 @@ async function deleteColumn(colId){
   const hasTasks = tasks.some(t => t.columnId === colId);
   if(hasTasks && !confirm('Essa coluna tem tarefas. Elas vão pra primeira coluna. Continuar?')) return;
   const fallback = columns.find(c => c.id !== colId);
-  tasks.forEach(t => { if(t.columnId === colId) t.columnId = fallback.id; });
+  const removedColumns = columns;
+  const movedTasks = tasks.filter(t => t.columnId === colId);
+  movedTasks.forEach(t => { t.columnId = fallback.id; });
   columns = columns.filter(c => c.id !== colId);
-  await DB.saveColumns(columns);
-  await DB.saveTasks(tasks);
+  const okCols = await persistColumns(() => { columns = removedColumns; });
+  if(!okCols) { movedTasks.forEach(t => { t.columnId = colId; }); return; }
+  const okTasks = await persistTasks(() => { movedTasks.forEach(t => { t.columnId = colId; }); });
+  if(!okTasks) return;
   render();
 }
 
@@ -786,9 +1050,65 @@ async function checkDueNotifications(){
   if(changed) await DB.saveTasks(tasks);
 }
 
+// ---- ditado por voz (Web Speech API) ---------------------------------------
+// so funciona em navegadores com suporte (Chrome, Edge, Safari); em quem nao
+// tem (Firefox, por exemplo) o botao de microfone fica escondido.
+function attachVoiceInput(btn, targetEl){
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognitionCtor){ btn.classList.add('hidden'); return; }
+
+  let recognition = null;
+  let listening = false;
+  let baseText = '';
+
+  const stopListening = () => {
+    listening = false;
+    btn.classList.remove('listening');
+  };
+
+  btn.addEventListener('click', () => {
+    if(listening){ recognition && recognition.stop(); return; }
+    baseText = targetEl.value ? targetEl.value.trim() + ' ' : '';
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (e) => {
+      let finalText = '', interim = '';
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const chunk = e.results[i][0].transcript;
+        if(e.results[i].isFinal) finalText += chunk + ' ';
+        else interim += chunk;
+      }
+      targetEl.value = (baseText + finalText + interim).trim();
+      baseText = (baseText + finalText);
+    };
+    recognition.onerror = () => { stopListening(); };
+    recognition.onend = () => { stopListening(); };
+    try {
+      recognition.start();
+      listening = true;
+      btn.classList.add('listening');
+    } catch(err){
+      console.error('[Atividades] falha ao iniciar ditado por voz:', err);
+      showToast('Não foi possível acessar o microfone.', true);
+    }
+  });
+}
+
 // ---- eventos estaticos -----------------------------------------------------
 function bindStaticEvents(){
   initBoardPan(document.getElementById('board'));
+
+  attachVoiceInput(document.getElementById('capture-mic-btn'), document.getElementById('capture-input'));
+  attachVoiceInput(document.getElementById('capture-note-mic-btn'), document.getElementById('capture-note'));
+  attachVoiceInput(document.getElementById('task-note-mic-btn'), document.getElementById('task-note'));
+
+  document.getElementById('capture-toggle-btn').addEventListener('click', () => {
+    const extra = document.getElementById('capture-extra');
+    const showing = extra.classList.toggle('show');
+    document.getElementById('capture-toggle-btn').textContent = showing ? 'Menos opções' : 'Mais opções';
+  });
 
   document.getElementById('tab-kanban').addEventListener('click', () => switchView('kanban'));
   document.getElementById('tab-productivity').addEventListener('click', () => switchView('productivity'));
