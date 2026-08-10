@@ -174,6 +174,7 @@
   .board-toolbar .date-field-display { font-size: 14.5px; }
   .field .date-field-wrap input[type=date], .field .date-field-wrap input[type=time] { width: 100%; }
   .field .date-field-display { font-size: 16px; }
+  .board-toolbar select { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; cursor: pointer; }
 
   .prod-wrap { display: none; padding: 24px 20px 32px; max-width: 960px; margin: 0 auto; }
   .prod-toolbar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
@@ -300,6 +301,11 @@
       <input type="date" id="day-filter-input">
       <span class="date-field-display placeholder" id="day-filter-display">Filtrar por dia</span>
     </div>
+    <select id="category-filter-select">
+      <option value="">Todas as categorias</option>
+      <option value="pessoal">Só pessoal</option>
+      <option value="profissional">Só profissional</option>
+    </select>
     <span class="day-filter-label" id="day-filter-label"></span>
     <button class="btn-link" id="day-filter-clear-btn" style="display:none;">Limpar filtro</button>
   </div>
@@ -365,6 +371,14 @@
         <option value="media">Média</option>
         <option value="alta">Alta</option>
       </select></div>
+    </div>
+    <div class="field">
+      <label>Categoria</label>
+      <select id="task-category">
+        <option value="">Não definida</option>
+        <option value="pessoal">Pessoal</option>
+        <option value="profissional">Profissional</option>
+      </select>
     </div>
     <div class="field">
       <label>Repetir</label>
@@ -522,6 +536,7 @@ let columns = JSON.parse(JSON.stringify(DEFAULT_COLUMNS)), tasks = [];
 let editingColumnId = null; // null = criando coluna nova
 let activeView = 'kanban';
 let dayFilter = '';
+let categoryFilter = '';
 let mobileExpandedColId = null; // coluna expandida no layout de celular (null = todas recolhidas)
 
 function columnById(id){ return columns.find(c => c.id === id); }
@@ -695,6 +710,7 @@ function spawnNextRecurrence(task){
     dueAt: task.dueAt ? nextDueDate(task.dueAt, task.recurrence) : null,
     urgency: task.urgency,
     recurrence: task.recurrence,
+    category: task.category,
     createdAt: now, movedAt: now,
     notifiedDue: false, notifiedOverdue: false,
     completedAt: null
@@ -751,6 +767,7 @@ function renderBoard(){
 
     const items = tasks.filter(t => t.columnId === col.id)
       .filter(t => !dayFilter || (t.dueAt && t.dueAt.slice(0,10) === dayFilter))
+      .filter(t => !categoryFilter || t.category === categoryFilter)
       .sort((a, b) => new Date(b.movedAt || b.createdAt) - new Date(a.movedAt || a.createdAt));
 
     const head = document.createElement('div');
@@ -798,6 +815,11 @@ function renderBoard(){
         (task.recurrence ? '<span class="due-chip" title="Repete: ' + escapeHtml(RECURRENCE_LABELS[task.recurrence] || task.recurrence) + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>' +
           '</span>' : '') +
+        (task.category ? '<span class="due-chip" title="' + (task.category === 'pessoal' ? 'Pessoal' : 'Profissional') + '">' +
+          (task.category === 'pessoal'
+            ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>'
+            : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>') +
+          (task.category === 'pessoal' ? 'Pessoal' : 'Profissional') + '</span>' : '') +
         '</div>' +
         (col.done ? '' : '<button class="task-complete-btn" data-id="' + task.id + '" title="Concluir">' +
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
@@ -1097,6 +1119,7 @@ function openTaskModal(taskId, prefillTitle){
   document.getElementById('task-note').value = task ? (task.note || '') : '';
   document.getElementById('task-urgency').value = task ? (task.urgency || 'media') : 'media';
   document.getElementById('task-recurrence').value = task ? (task.recurrence || '') : '';
+  document.getElementById('task-category').value = task ? (task.category || '') : '';
   if(task && task.dueAt){
     const d = new Date(task.dueAt);
     document.getElementById('task-due-date').value = d.toISOString().slice(0,10);
@@ -1130,6 +1153,7 @@ async function saveTask(){
   const columnId = document.getElementById('task-column').value;
   const urgency = document.getElementById('task-urgency').value || 'media';
   const recurrence = document.getElementById('task-recurrence').value || null;
+  const category = document.getElementById('task-category').value || null;
   let dueAt = null;
   if(dateVal){
     dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
@@ -1142,14 +1166,14 @@ async function saveTask(){
     const before = Object.assign({}, task);
     const columnChanged = task.columnId !== columnId;
     const dueChanged = task.dueAt !== dueAt;
-    Object.assign(task, { title, note, columnId, dueAt, urgency, recurrence, updatedAt: new Date().toISOString() });
+    Object.assign(task, { title, note, columnId, dueAt, urgency, recurrence, category, updatedAt: new Date().toISOString() });
     if(columnChanged) task.movedAt = new Date().toISOString();
     if(dueChanged){ task.notifiedDue = false; task.notifiedOverdue = false; }
     applyColumnCompletion(task, columnId);
     rollback = () => { Object.assign(task, before); tasks.length = tasksBefore; };
   } else {
     const now = new Date().toISOString();
-    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, recurrence, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
+    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, recurrence, category, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
     tasks.push(newTask);
     applyColumnCompletion(newTask, columnId);
     rollback = () => { tasks.length = tasksBefore; };
@@ -1355,6 +1379,8 @@ function bindStaticEvents(){
 
   document.getElementById('task-due-date').addEventListener('change', () => syncDateDisplay('task-due-date', 'task-due-date-display', 'dd/mm/aaaa', false));
   document.getElementById('task-due-time').addEventListener('change', () => syncDateDisplay('task-due-time', 'task-due-time-display', '--:--', true));
+
+  document.getElementById('category-filter-select').addEventListener('change', (e) => { categoryFilter = e.target.value; render(); });
 
   document.getElementById('task-cancel-btn').addEventListener('click', closeTaskModal);
   document.getElementById('task-save-btn').addEventListener('click', saveTask);
