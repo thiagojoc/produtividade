@@ -176,6 +176,11 @@
   .login-card .login-sub { font-size: 14.5px; color: var(--muted); margin-bottom: 22px; }
   .login-card .field { margin-bottom: 14px; }
   .login-err { font-size: 14px; color: var(--brown); margin-top: 10px; min-height: 18px; }
+  .login-msg { font-size: 14px; color: var(--blue); margin-top: 10px; min-height: 18px; }
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 42px; }
+  .pass-eye { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); padding: 8px; display: flex; align-items: center; }
+  .pass-eye:hover { color: var(--blue); }
   #login-screen.hidden { display: none; }
   #app-root.hidden { display: none; }
   .logout-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: var(--white); }
@@ -202,9 +207,21 @@
     <div class="login-sub">Entre com seu e-mail e senha.</div>
     <form id="login-form">
       <div class="field"><label>E-mail</label><input type="email" id="login-email" autocomplete="username" required></div>
-      <div class="field"><label>Senha</label><input type="password" id="login-pass" autocomplete="current-password" required></div>
+      <div class="field">
+        <label>Senha</label>
+        <div class="pass-wrap">
+          <input type="password" id="login-pass" autocomplete="current-password" required>
+          <button type="button" class="pass-eye" id="login-pass-eye" title="Mostrar/ocultar senha">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
       <button type="submit" class="btn-primary" style="width:100%;">Entrar</button>
       <div class="login-err" id="login-err"></div>
+      <div class="login-msg" id="login-msg"></div>
+      <div style="text-align:center; margin-top:14px;">
+        <button type="button" class="btn-link" id="forgot-pass-btn">Esqueci minha senha</button>
+      </div>
     </form>
   </div>
 </div>
@@ -354,7 +371,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /*
   App pessoal de gestão de atividades. Kanban simples: colunas configuráveis,
@@ -1241,13 +1258,42 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-err');
+  const msgEl = document.getElementById('login-msg');
   errEl.textContent = '';
+  msgEl.textContent = '';
   try {
     await signInWithEmailAndPassword(_fbAuth, email, pass);
     // onAuthStateChanged cuida do resto (mostrar o app)
   } catch(err){
     console.error('[Atividades] falha no login:', err);
     errEl.textContent = 'E-mail ou senha incorretos.';
+  }
+});
+
+document.getElementById('login-pass-eye').addEventListener('click', function(){
+  const input = document.getElementById('login-pass');
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  this.classList.toggle('on', isPass);
+});
+
+document.getElementById('forgot-pass-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-err');
+  const msgEl = document.getElementById('login-msg');
+  errEl.textContent = '';
+  msgEl.textContent = '';
+  if(!email){
+    errEl.textContent = 'Preencha o e-mail acima primeiro.';
+    document.getElementById('login-email').focus();
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(_fbAuth, email);
+    msgEl.textContent = 'Enviamos um link pra esse e-mail. Abra e cadastre uma senha nova.';
+  } catch(err){
+    console.error('[Atividades] falha ao enviar e-mail de redefinição:', err);
+    errEl.textContent = 'Não deu pra enviar o e-mail agora. Confira se o e-mail está certo.';
   }
 });
 
