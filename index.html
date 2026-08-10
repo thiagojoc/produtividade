@@ -61,9 +61,6 @@
   .capture-bar input { flex: 1; min-width: 160px; border: none; outline: none; font-size: 17px; padding: 10px 0; background: none; color: var(--ink); font-family: inherit; }
   .capture-bar input::placeholder { color: var(--muted); }
 
-  .capture-extra { display: none; max-width: 720px; margin: 10px auto 0; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-  .capture-extra.show { display: block; }
-  .capture-extra .field-row { align-items: flex-end; }
   .capture-note-row { display: flex; gap: 8px; align-items: flex-start; }
   .capture-note-row textarea { flex: 1; }
 
@@ -214,36 +211,7 @@
       <button class="mic-btn" id="capture-mic-btn" type="button" title="Ditar por voz">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </button>
-      <button class="btn-secondary btn-sm" id="capture-toggle-btn" type="button">Mais opções</button>
       <button class="btn-accent" id="capture-btn">Adicionar</button>
-    </div>
-    <div class="capture-extra" id="capture-extra">
-      <div class="field-row">
-        <div class="field">
-          <label>Prazo</label>
-          <div class="field-row">
-            <input type="date" id="capture-due-date">
-            <input type="time" id="capture-due-time">
-          </div>
-        </div>
-        <div class="field">
-          <label>Urgência</label>
-          <select id="capture-urgency">
-            <option value="baixa">Baixa</option>
-            <option value="media" selected>Média</option>
-            <option value="alta">Alta</option>
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label>Notas</label>
-        <div class="capture-note-row">
-          <textarea id="capture-note" placeholder="Detalhes, contexto, o que veio na demanda..."></textarea>
-          <button class="mic-btn" id="capture-note-mic-btn" type="button" title="Ditar por voz">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -429,6 +397,14 @@ function showToast(msg, isError){
 
 // salva e, se der erro (rede, regra do Firestore ainda nao publicada, etc.),
 // desfaz a mudanca local e avisa em vez de falhar em silencio.
+// mostra o motivo real do erro (codigo do Firestore, tipo permission-denied
+// ou unavailable) direto no aviso, pra dar pra descobrir a causa sem precisar
+// abrir o console do navegador.
+function saveErrorDetail(err){
+  const reason = err && (err.code || err.message);
+  return reason ? ' (' + reason + ')' : '';
+}
+
 async function persistTasks(rollbackFn){
   try {
     await DB.saveTasks(tasks);
@@ -436,7 +412,7 @@ async function persistTasks(rollbackFn){
   } catch(err){
     console.error('[Atividades] falha ao salvar tarefas:', err);
     if(rollbackFn) rollbackFn();
-    showToast('Não foi possível salvar. Verifique sua conexão e tente de novo.', true);
+    showToast('Não foi possível salvar' + saveErrorDetail(err) + '. Verifique sua conexão e tente de novo.', true);
     render();
     return false;
   }
@@ -448,7 +424,7 @@ async function persistColumns(rollbackFn){
   } catch(err){
     console.error('[Atividades] falha ao salvar colunas:', err);
     if(rollbackFn) rollbackFn();
-    showToast('Não foi possível salvar. Verifique sua conexão e tente de novo.', true);
+    showToast('Não foi possível salvar' + saveErrorDetail(err) + '. Verifique sua conexão e tente de novo.', true);
     render();
     return false;
   }
@@ -843,11 +819,11 @@ function fillColumnOptions(selectedId){
   sel.value = selectedId || columns[0].id;
 }
 
-function openTaskModal(taskId){
+function openTaskModal(taskId, prefillTitle){
   const task = taskId ? taskById(taskId) : null;
   document.getElementById('task-modal-title').textContent = task ? 'Editar tarefa' : 'Nova tarefa';
   document.getElementById('task-id').value = task ? task.id : '';
-  document.getElementById('task-title').value = task ? task.title : '';
+  document.getElementById('task-title').value = task ? task.title : (prefillTitle || '');
   document.getElementById('task-note').value = task ? (task.note || '') : '';
   document.getElementById('task-urgency').value = task ? (task.urgency || 'media') : 'media';
   if(task && task.dueAt){
@@ -861,7 +837,8 @@ function openTaskModal(taskId){
   fillColumnOptions(task ? task.columnId : columns[0].id);
   document.getElementById('task-delete-btn').style.display = task ? 'inline-block' : 'none';
   document.getElementById('task-modal-bg').classList.add('show');
-  setTimeout(() => document.getElementById('task-title').focus(), 50);
+  const focusId = prefillTitle ? 'task-note' : 'task-title';
+  setTimeout(() => document.getElementById(focusId).focus(), 50);
 }
 function closeTaskModal(){ document.getElementById('task-modal-bg').classList.remove('show'); }
 
@@ -913,34 +890,15 @@ async function deleteTask(){
   render();
 }
 
-function resetCaptureExtra(){
-  document.getElementById('capture-note').value = '';
-  document.getElementById('capture-due-date').value = '';
-  document.getElementById('capture-due-time').value = '';
-  document.getElementById('capture-urgency').value = 'media';
-  document.getElementById('capture-extra').classList.remove('show');
-  document.getElementById('capture-toggle-btn').textContent = 'Mais opções';
-}
-
-async function quickCapture(){
+// clicar em "Adicionar" (ou apertar Enter) na captura rapida abre direto o
+// modal completo de tarefa, ja com o titulo preenchido, pra dar prazo,
+// nota e urgencia antes de salvar. E o mesmo modal usado pra editar depois.
+function openCaptureModal(){
   const input = document.getElementById('capture-input');
   const title = input.value.trim();
-  if(!title) return;
-  const note = document.getElementById('capture-note').value.trim();
-  const dateVal = document.getElementById('capture-due-date').value;
-  const timeVal = document.getElementById('capture-due-time').value;
-  const urgency = document.getElementById('capture-urgency').value || 'media';
-  let dueAt = null;
-  if(dateVal) dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
-
-  const now = new Date().toISOString();
-  const newTask = { id: uid('t'), title, note, columnId: columns[0].id, dueAt, urgency, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
-  tasks.push(newTask);
-  const ok = await persistTasks(() => { tasks = tasks.filter(t => t.id !== newTask.id); });
-  if(!ok) return;
+  if(!title){ input.focus(); return; }
+  openTaskModal(null, title);
   input.value = '';
-  resetCaptureExtra();
-  render();
 }
 
 // ---- colunas -------------------------------------------------------------
@@ -1101,14 +1059,7 @@ function bindStaticEvents(){
   initBoardPan(document.getElementById('board'));
 
   attachVoiceInput(document.getElementById('capture-mic-btn'), document.getElementById('capture-input'));
-  attachVoiceInput(document.getElementById('capture-note-mic-btn'), document.getElementById('capture-note'));
   attachVoiceInput(document.getElementById('task-note-mic-btn'), document.getElementById('task-note'));
-
-  document.getElementById('capture-toggle-btn').addEventListener('click', () => {
-    const extra = document.getElementById('capture-extra');
-    const showing = extra.classList.toggle('show');
-    document.getElementById('capture-toggle-btn').textContent = showing ? 'Menos opções' : 'Mais opções';
-  });
 
   document.getElementById('tab-kanban').addEventListener('click', () => switchView('kanban'));
   document.getElementById('tab-productivity').addEventListener('click', () => switchView('productivity'));
@@ -1121,8 +1072,8 @@ function bindStaticEvents(){
     render();
   });
 
-  document.getElementById('capture-btn').addEventListener('click', quickCapture);
-  document.getElementById('capture-input').addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); quickCapture(); } });
+  document.getElementById('capture-btn').addEventListener('click', openCaptureModal);
+  document.getElementById('capture-input').addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); openCaptureModal(); } });
 
   document.getElementById('task-cancel-btn').addEventListener('click', closeTaskModal);
   document.getElementById('task-save-btn').addEventListener('click', saveTask);
