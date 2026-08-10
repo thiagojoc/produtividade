@@ -148,10 +148,13 @@
   .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
 
   .board-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 20px 0; flex-wrap: wrap; }
-  .board-toolbar input[type=date] { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; cursor: pointer; }
+  .board-toolbar input[type=date] { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); -webkit-text-fill-color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; cursor: pointer; min-width: 150px; }
   .board-toolbar input[type=date]:focus { outline: none; border-color: var(--blue); }
-  input[type=date], input[type=time] { cursor: pointer; }
-  input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { cursor: pointer; }
+  input[type=date], input[type=time] { cursor: pointer; color: var(--ink); -webkit-text-fill-color: var(--ink); }
+  input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { cursor: pointer; filter: none; opacity: 1; }
+  input[type=date]::-webkit-datetime-edit, input[type=time]::-webkit-datetime-edit { color: var(--ink); -webkit-text-fill-color: var(--ink); }
+  input[type=date]::-webkit-datetime-edit-fields-wrapper, input[type=time]::-webkit-datetime-edit-fields-wrapper { color: var(--ink); -webkit-text-fill-color: var(--ink); }
+  input[type=date]::-webkit-datetime-edit-text, input[type=date]::-webkit-datetime-edit-month-field, input[type=date]::-webkit-datetime-edit-day-field, input[type=date]::-webkit-datetime-edit-year-field { color: var(--ink); -webkit-text-fill-color: var(--ink); }
   .day-filter-label { font-size: 14px; color: var(--muted); }
 
   .prod-wrap { display: none; padding: 24px 20px 32px; max-width: 960px; margin: 0 auto; }
@@ -208,7 +211,6 @@
     .col-toggle-btn { display: flex; }
     .col-body { display: none; }
     .col.expanded .col-body { display: flex; }
-    .board-toolbar input[type=date] { min-width: 150px; }
   }
 </style>
 </head>
@@ -369,6 +371,7 @@
     <h3 id="col-modal-title">Nova coluna</h3>
     <div class="field"><label>Nome</label><input type="text" id="col-name-input" placeholder="Ex.: Aguardando resposta"></div>
     <div class="field"><label class="field-check"><input type="checkbox" id="col-done-check"> Tarefas aqui contam como concluídas</label></div>
+    <div class="field"><label class="field-check"><input type="checkbox" id="col-overdue-check"> Tarefas atrasadas vêm pra cá automaticamente</label></div>
     <div class="modal-actions"><div></div><div class="right">
       <button class="btn-secondary" id="col-cancel-btn">Cancelar</button>
       <button class="btn-primary" id="col-save-btn">Salvar</button>
@@ -442,6 +445,7 @@ function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, c => ({'&':
 
 const DEFAULT_COLUMNS = [
   { id: 'col-inbox', label: 'Inbox', done: false },
+  { id: 'col-atrasadas', label: 'Atrasadas', done: false, overdue: true },
   { id: 'col-todo', label: 'A Fazer', done: false },
   { id: 'col-doing', label: 'Em Andamento', done: false },
   { id: 'col-done', label: 'Concluído', done: true }
@@ -563,13 +567,44 @@ async function boot(){
     console.error('[Atividades] não foi possível carregar os dados salvos:', err);
     showToast('Não deu pra carregar seus dados salvos agora. Verifique a conexão.', true);
   }
+  await ensureOverdueColumn();
+  await autoMoveOverdueTasks();
   render();
   DB.onUpdate(() => {
     columns = (_fbData.columns && _fbData.columns.length) ? _fbData.columns : columns;
     tasks = _fbData.tasks || [];
     render();
   });
-  setInterval(() => { render(); checkDueNotifications(); }, 30000);
+  setInterval(() => { render(); checkDueNotifications(); autoMoveOverdueTasks(); }, 30000);
+}
+
+// se nenhuma coluna estiver marcada como "de atrasadas" ainda, cria uma
+// automaticamente (feito uma vez so; depois disso e o usuario quem decide
+// se quer manter, renomear ou desmarcar essa coluna).
+async function ensureOverdueColumn(){
+  if(columns.some(c => c.overdue)) return;
+  const newCol = { id: uid('col'), label: 'Atrasadas', done: false, overdue: true };
+  columns = [columns[0], newCol, ...columns.slice(1)];
+  await persistColumns();
+}
+
+// tarefa que passou do vencimento (e nao esta numa coluna "concluida") vai
+// sozinha pra coluna marcada como "de atrasadas", sem precisar arrastar.
+async function autoMoveOverdueTasks(){
+  const overdueCol = columns.find(c => c.overdue);
+  if(!overdueCol) return;
+  let changed = false;
+  tasks.forEach(t => {
+    if(dueState(t) === 'overdue' && t.columnId !== overdueCol.id){
+      t.columnId = overdueCol.id;
+      t.movedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if(changed){
+    await persistTasks();
+    render();
+  }
 }
 
 function updateTodayLabel(){
@@ -1080,6 +1115,7 @@ async function saveTask(){
   if(!ok) return;
   closeTaskModal();
   render();
+  autoMoveOverdueTasks(); // pega na hora se a data escolhida ja esta no passado
 }
 
 async function deleteTask(){
@@ -1099,6 +1135,7 @@ function openColumnModal(colId){
   document.getElementById('col-modal-title').textContent = col ? 'Editar coluna' : 'Nova coluna';
   document.getElementById('col-name-input').value = col ? col.label : '';
   document.getElementById('col-done-check').checked = col ? !!col.done : false;
+  document.getElementById('col-overdue-check').checked = col ? !!col.overdue : false;
   document.getElementById('col-modal-bg').classList.add('show');
   setTimeout(() => document.getElementById('col-name-input').focus(), 50);
 }
@@ -1108,16 +1145,19 @@ async function saveColumn(){
   const name = document.getElementById('col-name-input').value.trim();
   if(!name) return;
   const done = document.getElementById('col-done-check').checked;
+  const overdue = document.getElementById('col-overdue-check').checked;
+  const columnsBefore = JSON.parse(JSON.stringify(columns));
   let rollback;
+  // so uma coluna pode ser "de atrasadas" por vez
+  if(overdue) columns.forEach(c => { c.overdue = false; });
   if(editingColumnId){
     const col = columnById(editingColumnId);
-    const before = Object.assign({}, col);
-    col.label = name; col.done = done;
-    rollback = () => Object.assign(col, before);
+    col.label = name; col.done = done; col.overdue = overdue;
+    rollback = () => { columns = columnsBefore; };
   } else {
-    const newCol = { id: uid('col'), label: name, done };
+    const newCol = { id: uid('col'), label: name, done, overdue };
     columns.push(newCol);
-    rollback = () => { columns = columns.filter(c => c.id !== newCol.id); };
+    rollback = () => { columns = columnsBefore; };
   }
   const ok = await persistColumns(rollback);
   if(!ok) return;
