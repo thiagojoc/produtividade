@@ -170,6 +170,17 @@
   .mic-btn.hidden { display: none; }
   @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(140,100,73,0.4); } 50% { box-shadow: 0 0 0 9px rgba(140,100,73,0); } }
 
+  #login-screen { position: fixed; inset: 0; z-index: 300; background: var(--navy); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card { width: 360px; max-width: 100%; background: var(--white); border-radius: 16px; padding: 34px 30px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.4); }
+  .login-card h1 { margin: 0 0 6px; font-size: 22px; color: var(--ink); }
+  .login-card .login-sub { font-size: 14.5px; color: var(--muted); margin-bottom: 22px; }
+  .login-card .field { margin-bottom: 14px; }
+  .login-err { font-size: 14px; color: var(--brown); margin-top: 10px; min-height: 18px; }
+  #login-screen.hidden { display: none; }
+  #app-root.hidden { display: none; }
+  .logout-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: var(--white); }
+  .logout-btn:hover { background: rgba(255,255,255,0.16); }
+
   @media (max-width: 640px) {
     /* no celular, o quadro vira uma lista de colunas recolhidas (so o
        cabecalho), empilhadas em uma tela so, sem rolar pros lados. Clicar
@@ -184,6 +195,21 @@
 </style>
 </head>
 <body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1 class="serif">Gestão de atividades</h1>
+    <div class="login-sub">Entre com seu e-mail e senha.</div>
+    <form id="login-form">
+      <div class="field"><label>E-mail</label><input type="email" id="login-email" autocomplete="username" required></div>
+      <div class="field"><label>Senha</label><input type="password" id="login-pass" autocomplete="current-password" required></div>
+      <button type="submit" class="btn-primary" style="width:100%;">Entrar</button>
+      <div class="login-err" id="login-err"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app-root" class="hidden">
 
 <div class="toast" id="toast"></div>
 
@@ -201,8 +227,14 @@
   <span class="today" id="today-label"></span>
   <div class="overdue-flag" id="overdue-flag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12" y2="16.5"/></svg><span id="overdue-count">0</span> atrasada(s)</div>
   <div class="spacer"></div>
+  <button class="icon-btn" id="backup-btn" title="Baixar backup dos dados">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </button>
   <button class="icon-btn" id="notif-toggle-btn" title="Notificações">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+  </button>
+  <button class="icon-btn logout-btn" id="logout-btn" title="Sair">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
   </button>
 </header>
 
@@ -317,16 +349,24 @@
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 </button>
 
+</div><!-- /#app-root -->
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /*
   App pessoal de gestão de atividades. Kanban simples: colunas configuráveis,
-  tarefas com nota e vencimento opcional, captura rápida no topo. Sincroniza
-  via Firestore (mesmo projeto Firebase do painel FlowSales), sem login:
-  quem tem o link acessa. Documento único em atividades_app/main.
+  tarefas com nota e vencimento opcional, botão + pra criar. Sincroniza via
+  Firestore (mesmo projeto Firebase do painel FlowSales). Login com e-mail e
+  senha (Firebase Auth de verdade, não só um campo decorativo): a regra do
+  Firestore só libera leitura/escrita pra esse e-mail específico, então
+  mesmo quem descobrir a URL ou a config do Firebase não consegue ler ou
+  gravar nada sem saber a senha. Documento único em atividades_app/main.
 */
+
+const ALLOWED_EMAIL = 'tcaetano1706@gmail.com';
 
 const _fbConfig = {
   apiKey: "AIzaSyBTqzj-9-AOI181sPCKvRsVGDujkWogIGI",
@@ -338,9 +378,29 @@ const _fbConfig = {
 };
 const _fbApp = initializeApp(_fbConfig);
 const _fbDB = getFirestore(_fbApp);
+const _fbAuth = getAuth(_fbApp);
 const DOC_REF = doc(_fbDB, 'atividades_app', 'main');
 
 function uid(prefix){ return (prefix||'x') + Date.now() + Math.floor(Math.random()*100000); }
+
+// backup manual: baixa um .json com tudo (colunas e tarefas) pro
+// computador. Unica protecao contra perda de dado hoje (regra do
+// Firestore apagada sem querer, bug, etc.) alem de nao ter como desfazer.
+function exportBackup(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    columns,
+    tasks
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'atividades-backup-' + todayDateStr() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup baixado.');
+}
 // data de hoje no fuso local (nao usar toISOString aqui, que converte pra
 // UTC e pode voltar um dia errado dependendo da hora/fuso).
 function todayDateStr(){
@@ -390,7 +450,6 @@ async function _fbInit(){
   })();
   return _fbReadyPromise;
 }
-_fbInit().catch(() => {});
 
 const DB = {
   onUpdate(cb){ _onFbUpdate = cb; },
@@ -1157,6 +1216,9 @@ function bindStaticEvents(){
   document.getElementById('col-cancel-btn').addEventListener('click', closeColumnModal);
   document.getElementById('col-save-btn').addEventListener('click', saveColumn);
 
+  document.getElementById('logout-btn').addEventListener('click', () => signOut(_fbAuth));
+  document.getElementById('backup-btn').addEventListener('click', exportBackup);
+
   document.getElementById('notif-toggle-btn').addEventListener('click', requestNotifPermission);
   document.getElementById('notif-enable-btn').addEventListener('click', requestNotifPermission);
   document.getElementById('notif-dismiss-btn').addEventListener('click', () => {
@@ -1171,7 +1233,37 @@ function bindStaticEvents(){
   document.addEventListener('visibilitychange', () => { if(!document.hidden) checkDueNotifications(); });
 }
 
-boot();
+// ---- login -----------------------------------------------------------
+let _booted = false;
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  try {
+    await signInWithEmailAndPassword(_fbAuth, email, pass);
+    // onAuthStateChanged cuida do resto (mostrar o app)
+  } catch(err){
+    console.error('[Atividades] falha no login:', err);
+    errEl.textContent = 'E-mail ou senha incorretos.';
+  }
+});
+
+onAuthStateChanged(_fbAuth, (user) => {
+  const loggedIn = !!user && user.email === ALLOWED_EMAIL;
+  document.getElementById('login-screen').classList.toggle('hidden', loggedIn);
+  document.getElementById('app-root').classList.toggle('hidden', !loggedIn);
+  if(loggedIn && !_booted){
+    _booted = true;
+    boot();
+  }
+  if(!loggedIn){
+    document.getElementById('login-pass').value = '';
+    setTimeout(() => document.getElementById('login-email').focus(), 50);
+  }
+});
 </script>
 </body>
 </html>
