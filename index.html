@@ -12,6 +12,11 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%2316233F%22/><path d=%22M7 12l3 3 7-7%22 stroke=%22%236FA8DC%22 stroke-width=%222.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
 <style>
   :root {
+    /* app so tem tema claro; sem isso, celular no modo escuro pinta o
+       texto de campos nativos (data/hora) em branco sobre fundo branco,
+       ficando em branco ate voce tocar (o seletor que abre tem contraste
+       proprio, so o campo fechado que sumia). */
+    color-scheme: light;
     --navy: #16233F;
     --navy-2: #24345A;
     --navy-soft: rgba(22,35,63,0.06);
@@ -81,9 +86,12 @@
   .col-count { font-size: 13px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
   .col-del { background: none; border: none; color: rgba(22,35,63,0.35); cursor: pointer; font-size: 16px; padding: 2px 4px; }
   .col-del:hover { color: var(--brown); }
-  /* so aparece no celular (ver media query no fim do arquivo): alterna
-     coluna expandida/recolhida sem disputar clique com o campo de nome */
-  .col-toggle-btn { display: none; align-items: center; justify-content: center; background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; transition: transform .15s; }
+  /* so aparece no celular (ver media query no fim do arquivo): faixa
+     propria pra expandir/recolher a coluna, separada do cabecalho pra
+     nao ficar coladinha no "excluir" */
+  .col-toggle-btn { display: none; width: 100%; align-items: center; justify-content: center; background: var(--paper); border: none; border-top: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 10px 4px; flex-shrink: 0; }
+  .col-toggle-btn svg { transition: transform .15s; }
+  .col.expanded .col-toggle-btn svg { transform: rotate(180deg); }
   .col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; min-height: 60px; scrollbar-width: thin; scrollbar-color: rgba(22,35,63,0.16) transparent; }
   .col-body::-webkit-scrollbar { width: 6px; }
   .col-body::-webkit-scrollbar-thumb { background: rgba(22,35,63,0.16); border-radius: 3px; }
@@ -173,7 +181,7 @@
   .mic-btn.hidden { display: none; }
   @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(140,100,73,0.4); } 50% { box-shadow: 0 0 0 9px rgba(140,100,73,0); } }
 
-  .app-footer { text-align: center; padding: 18px 20px 90px; font-size: 14px; color: var(--muted); }
+  .app-footer { text-align: center; margin-top: 22px; font-size: 14px; color: var(--muted); }
 
   #login-screen { position: fixed; inset: 0; z-index: 300; background: var(--navy); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .login-card { width: 360px; max-width: 100%; background: var(--white); border-radius: 16px; padding: 34px 30px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.4); }
@@ -200,7 +208,7 @@
     .col-toggle-btn { display: flex; }
     .col-body { display: none; }
     .col.expanded .col-body { display: flex; }
-    .col.expanded .col-toggle-btn { transform: rotate(180deg); }
+    .board-toolbar input[type=date] { min-width: 150px; }
   }
 </style>
 </head>
@@ -228,6 +236,7 @@
         <button type="button" class="btn-link" id="forgot-pass-btn">Esqueci minha senha</button>
       </div>
     </form>
+    <div class="app-footer">Criado por Thiago Caetano</div>
   </div>
 </div>
 
@@ -299,8 +308,6 @@
     </div>
   </div>
 </div>
-
-<div class="app-footer">Criado por Thiago Caetano</div>
 
 <div class="modal-bg" id="task-modal-bg">
   <div class="modal">
@@ -696,20 +703,21 @@ function renderBoard(){
       '<span class="col-dot"></span>' +
       '<input class="col-title" data-id="' + col.id + '" value="' + escapeHtml(col.label) + '">' +
       '<span class="col-count">' + items.length + '</span>' +
-      '<button class="col-toggle-btn" data-id="' + col.id + '" title="Expandir/recolher">' +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
-      '</button>' +
       '<button class="col-del" data-id="' + col.id + '" title="Excluir coluna">&times;</button>';
     colEl.appendChild(head);
-    // botao dedicado em vez de clicar em qualquer lugar do cabecalho: o
-    // campo de nome ocupa quase toda a largura e ja usa stopPropagation
-    // pro clique dele (foco pra editar), entao um alvo separado evita
-    // que um toque no titulo tente expandir/recolher ao mesmo tempo.
-    head.querySelector('.col-toggle-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
+
+    // no celular, o botao de expandir/recolher fica numa faixa propria,
+    // separada do cabecalho (longe do "excluir", que fica lado a lado
+    // com o titulo). So aparece no layout mobile (ver media query).
+    const toggleBar = document.createElement('button');
+    toggleBar.className = 'col-toggle-btn';
+    toggleBar.title = 'Expandir/recolher';
+    toggleBar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+    toggleBar.addEventListener('click', () => {
       mobileExpandedColId = (mobileExpandedColId === col.id) ? null : col.id;
       render();
     });
+    colEl.appendChild(toggleBar);
 
     const body = document.createElement('div');
     body.className = 'col-body';
