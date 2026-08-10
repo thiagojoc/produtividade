@@ -148,14 +148,32 @@
   .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
 
   .board-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 20px 0; flex-wrap: wrap; }
-  .board-toolbar input[type=date] { background: var(--white); border: 1px solid var(--border); border-radius: 8px; color: var(--ink); -webkit-text-fill-color: var(--ink); padding: 8px 11px; font-size: 14.5px; font-family: inherit; cursor: pointer; min-width: 150px; }
-  .board-toolbar input[type=date]:focus { outline: none; border-color: var(--blue); }
-  input[type=date], input[type=time] { cursor: pointer; color: var(--ink); -webkit-text-fill-color: var(--ink); }
-  input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { cursor: pointer; filter: none; opacity: 1; }
-  input[type=date]::-webkit-datetime-edit, input[type=time]::-webkit-datetime-edit { color: var(--ink); -webkit-text-fill-color: var(--ink); }
-  input[type=date]::-webkit-datetime-edit-fields-wrapper, input[type=time]::-webkit-datetime-edit-fields-wrapper { color: var(--ink); -webkit-text-fill-color: var(--ink); }
-  input[type=date]::-webkit-datetime-edit-text, input[type=date]::-webkit-datetime-edit-month-field, input[type=date]::-webkit-datetime-edit-day-field, input[type=date]::-webkit-datetime-edit-year-field { color: var(--ink); -webkit-text-fill-color: var(--ink); }
   .day-filter-label { font-size: 14px; color: var(--muted); }
+
+  /* campos de data/hora: o texto nativo do input fica transparente e um
+     <span> por cima mostra o valor formatado. O celular (principalmente
+     Safari/iOS) tem um bug antigo e teimoso de deixar o texto interno do
+     campo nativo branco-sobre-branco ate o campo ganhar foco, mesmo
+     forcando cor via CSS no input; brigar com a renderizacao nativa nao
+     resolveu (ja foram duas tentativas). O span por cima nunca tem esse
+     problema porque e um elemento comum, nao um controle nativo. */
+  .date-field-wrap { position: relative; }
+  .date-field-wrap input[type=date], .date-field-wrap input[type=time] {
+    color: transparent; -webkit-text-fill-color: transparent; cursor: pointer;
+  }
+  .date-field-wrap input[type=date]::-webkit-calendar-picker-indicator,
+  .date-field-wrap input[type=time]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 1; }
+  .date-field-display {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    pointer-events: none; font-family: inherit; color: var(--ink); white-space: nowrap;
+  }
+  .date-field-display.placeholder { color: var(--muted); }
+  .board-toolbar .date-field-wrap { display: inline-block; }
+  .board-toolbar .date-field-wrap input[type=date] { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; font-size: 14.5px; font-family: inherit; min-width: 150px; }
+  .board-toolbar .date-field-wrap input[type=date]:focus { outline: none; border-color: var(--blue); }
+  .board-toolbar .date-field-display { font-size: 14.5px; }
+  .field .date-field-wrap input[type=date], .field .date-field-wrap input[type=time] { width: 100%; }
+  .field .date-field-display { font-size: 16px; }
 
   .prod-wrap { display: none; padding: 24px 20px 32px; max-width: 960px; margin: 0 auto; }
   .prod-toolbar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
@@ -278,7 +296,10 @@
 
 <div id="kanban-view">
   <div class="board-toolbar" id="board-toolbar">
-    <input type="date" id="day-filter-input">
+    <div class="date-field-wrap">
+      <input type="date" id="day-filter-input">
+      <span class="date-field-display placeholder" id="day-filter-display">Filtrar por dia</span>
+    </div>
     <span class="day-filter-label" id="day-filter-label"></span>
     <button class="btn-link" id="day-filter-clear-btn" style="display:none;">Limpar filtro</button>
   </div>
@@ -334,8 +355,8 @@
       </div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Vencimento</label><input type="date" id="task-due-date"></div>
-      <div class="field"><label>Hora</label><input type="time" id="task-due-time"></div>
+      <div class="field"><label>Vencimento</label><div class="date-field-wrap"><input type="date" id="task-due-date"><span class="date-field-display placeholder" id="task-due-date-display">dd/mm/aaaa</span></div></div>
+      <div class="field"><label>Hora</label><div class="date-field-wrap"><input type="time" id="task-due-time"><span class="date-field-display placeholder" id="task-due-time-display">--:--</span></div></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Coluna</label><select id="task-column"></select></div>
@@ -1048,6 +1069,26 @@ function fillColumnOptions(selectedId){
   sel.value = selectedId || columns[0].id;
 }
 
+// mostra o valor de um input de data/hora num <span> por cima dele (ver
+// comentario no CSS de .date-field-wrap sobre o motivo).
+function syncDateDisplay(inputId, displayId, placeholder, isTime){
+  const input = document.getElementById(inputId);
+  const display = document.getElementById(displayId);
+  if(!input || !display) return;
+  if(!input.value){
+    display.textContent = placeholder;
+    display.classList.add('placeholder');
+    return;
+  }
+  display.classList.remove('placeholder');
+  if(isTime){
+    display.textContent = input.value;
+  } else {
+    const [y, m, d] = input.value.split('-');
+    display.textContent = d + '/' + m + '/' + y;
+  }
+}
+
 function openTaskModal(taskId, prefillTitle){
   const task = taskId ? taskById(taskId) : null;
   document.getElementById('task-modal-title').textContent = task ? 'Editar tarefa' : 'Nova tarefa';
@@ -1069,6 +1110,8 @@ function openTaskModal(taskId, prefillTitle){
     document.getElementById('task-due-date').value = '';
     document.getElementById('task-due-time').value = '';
   }
+  syncDateDisplay('task-due-date', 'task-due-date-display', 'dd/mm/aaaa', false);
+  syncDateDisplay('task-due-time', 'task-due-time-display', '--:--', true);
   fillColumnOptions(task ? task.columnId : columns[0].id);
   document.getElementById('task-delete-btn').style.display = task ? 'inline-block' : 'none';
   document.getElementById('task-modal-bg').classList.add('show');
@@ -1298,12 +1341,20 @@ function bindStaticEvents(){
   document.getElementById('tab-productivity').addEventListener('click', () => switchView('productivity'));
   document.getElementById('prod-period').addEventListener('change', render);
 
-  document.getElementById('day-filter-input').addEventListener('change', (e) => { dayFilter = e.target.value; render(); });
+  document.getElementById('day-filter-input').addEventListener('change', (e) => {
+    dayFilter = e.target.value;
+    syncDateDisplay('day-filter-input', 'day-filter-display', 'Filtrar por dia', false);
+    render();
+  });
   document.getElementById('day-filter-clear-btn').addEventListener('click', () => {
     dayFilter = '';
     document.getElementById('day-filter-input').value = '';
+    syncDateDisplay('day-filter-input', 'day-filter-display', 'Filtrar por dia', false);
     render();
   });
+
+  document.getElementById('task-due-date').addEventListener('change', () => syncDateDisplay('task-due-date', 'task-due-date-display', 'dd/mm/aaaa', false));
+  document.getElementById('task-due-time').addEventListener('change', () => syncDateDisplay('task-due-time', 'task-due-time-display', '--:--', true));
 
   document.getElementById('task-cancel-btn').addEventListener('click', closeTaskModal);
   document.getElementById('task-save-btn').addEventListener('click', saveTask);
