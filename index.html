@@ -169,6 +169,10 @@
   .modal-actions .right { display: flex; gap: 8px; }
   .field-check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--ink); cursor: pointer; }
   .field-check input { width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; }
+  .weekday-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .weekday-btn { flex: 1; min-width: 42px; padding: 10px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: var(--fs-caption); font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; }
+  .weekday-btn:hover { border-color: var(--blue); }
+  .weekday-btn.on { background: var(--blue); border-color: var(--blue); color: var(--white); }
 
   .notif-banner { display: none; align-items: center; gap: 10px; background: var(--navy); color: var(--white); padding: 11px 20px; font-size: 14.5px; }
   .notif-banner.show { display: flex; }
@@ -421,6 +425,19 @@
         <option value="yearly">Anualmente</option>
       </select>
       <div class="hint">Ao concluir uma tarefa que repete, a próxima já entra automaticamente no quadro.</div>
+    </div>
+    <div class="field" id="task-weekday-field" style="display:none;">
+      <label>Em quais dias</label>
+      <div class="weekday-picker" id="task-weekday-picker">
+        <button type="button" class="weekday-btn" data-day="0">Dom</button>
+        <button type="button" class="weekday-btn" data-day="1">Seg</button>
+        <button type="button" class="weekday-btn" data-day="2">Ter</button>
+        <button type="button" class="weekday-btn" data-day="3">Qua</button>
+        <button type="button" class="weekday-btn" data-day="4">Qui</button>
+        <button type="button" class="weekday-btn" data-day="5">Sex</button>
+        <button type="button" class="weekday-btn" data-day="6">Sáb</button>
+      </div>
+      <div class="hint">Escolha um ou mais dias, por exemplo só terça, ou terça e quinta.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-danger" id="task-delete-btn" style="display:none;">Excluir</button>
@@ -726,13 +743,30 @@ function applyColumnCompletion(task, colId){
   }
 }
 
-function nextDueDate(dueAt, recurrence){
+function nextDueDate(dueAt, recurrence, recurrenceDays){
   if(!dueAt) return null;
   const d = new Date(dueAt);
-  if(recurrence === 'daily') d.setDate(d.getDate() + 1);
-  else if(recurrence === 'weekly') d.setDate(d.getDate() + 7);
-  else if(recurrence === 'monthly') d.setMonth(d.getMonth() + 1);
-  else if(recurrence === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  if(recurrence === 'daily'){
+    d.setDate(d.getDate() + 1);
+  } else if(recurrence === 'weekly'){
+    if(Array.isArray(recurrenceDays) && recurrenceDays.length){
+      // acha o proximo dia marcado a partir de amanha, dando a volta pra
+      // semana seguinte se nenhum dos marcados sobrar nessa semana (ex.:
+      // só terça e quinta, hoje é quinta, o próximo é a terça que vem).
+      for(let i = 1; i <= 7; i++){
+        const cand = new Date(d);
+        cand.setDate(cand.getDate() + i);
+        if(recurrenceDays.includes(cand.getDay())) return cand.toISOString();
+      }
+    }
+    // sem dias escolhidos (tarefa antiga, de antes desse campo existir):
+    // mantém o comportamento de sempre, repete no mesmo dia da semana.
+    d.setDate(d.getDate() + 7);
+  } else if(recurrence === 'monthly'){
+    d.setMonth(d.getMonth() + 1);
+  } else if(recurrence === 'yearly'){
+    d.setFullYear(d.getFullYear() + 1);
+  }
   return d.toISOString();
 }
 
@@ -745,9 +779,10 @@ function spawnNextRecurrence(task){
     title: task.title,
     note: task.note,
     columnId: columns[0].id,
-    dueAt: task.dueAt ? nextDueDate(task.dueAt, task.recurrence) : null,
+    dueAt: task.dueAt ? nextDueDate(task.dueAt, task.recurrence, task.recurrenceDays) : null,
     urgency: task.urgency,
     recurrence: task.recurrence,
+    recurrenceDays: task.recurrenceDays || null,
     category: task.category,
     createdAt: now, movedAt: now,
     notifiedDue: false, notifiedOverdue: false,
@@ -850,7 +885,7 @@ function renderBoard(){
         (task.dueAt ? '<span class="due-chip' + (state === 'overdue' ? ' overdue' : '') + (state === 'today' ? ' today' : '') + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
           escapeHtml(formatDue(task.dueAt)) + '</span>' : '') +
-        (task.recurrence ? '<span class="due-chip" title="Repete: ' + escapeHtml(RECURRENCE_LABELS[task.recurrence] || task.recurrence) + '">' +
+        (task.recurrence ? '<span class="due-chip" title="Repete: ' + escapeHtml(recurrenceLabel(task)) + '">' +
           '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>' +
           '</span>' : '') +
         (task.category ? '<span class="due-chip" title="' + (task.category === 'pessoal' ? 'Pessoal' : 'Profissional') + '">' +
@@ -894,6 +929,17 @@ function renderBoard(){
 // ---- produtividade: total, sequencia, grafico de colunas e pizza por urgencia
 const URGENCY_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
 const RECURRENCE_LABELS = { daily: 'diariamente', weekly: 'semanalmente', monthly: 'mensalmente', yearly: 'anualmente' };
+const WEEKDAY_SHORT_LABELS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+// texto do chip "repete": tarefa semanal com dias escolhidos mostra
+// "toda terça" ou "toda seg, qua e sex" em vez do genérico "semanalmente".
+function recurrenceLabel(task){
+  if(task.recurrence === 'weekly' && Array.isArray(task.recurrenceDays) && task.recurrenceDays.length){
+    const names = task.recurrenceDays.slice().sort((a, b) => a - b).map(d => WEEKDAY_SHORT_LABELS[d]);
+    if(names.length === 1) return 'toda ' + names[0];
+    return 'toda ' + names.slice(0, -1).join(', ') + ' e ' + names[names.length - 1];
+  }
+  return RECURRENCE_LABELS[task.recurrence] || task.recurrence;
+}
 const URGENCY_COLORS = { alta: '#8C6449', media: '#4F8FE0', baixa: 'rgba(22,35,63,0.35)', none: 'rgba(22,35,63,0.14)' };
 
 function formatDayLabel(d){
@@ -1149,6 +1195,23 @@ function syncDateDisplay(inputId, displayId, placeholder, isTime){
   }
 }
 
+// ---- dias da semana da repeticao (so aparece quando "Repetir" = Semanalmente)
+function updateWeekdayFieldVisibility(){
+  const isWeekly = document.getElementById('task-recurrence').value === 'weekly';
+  document.getElementById('task-weekday-field').style.display = isWeekly ? '' : 'none';
+}
+function setWeekdayPicker(days){
+  const set = new Set(days || []);
+  document.querySelectorAll('#task-weekday-picker .weekday-btn').forEach(btn => {
+    btn.classList.toggle('on', set.has(Number(btn.dataset.day)));
+  });
+}
+function getWeekdayPicker(){
+  return Array.prototype.slice.call(document.querySelectorAll('#task-weekday-picker .weekday-btn.on'))
+    .map(btn => Number(btn.dataset.day))
+    .sort((a, b) => a - b);
+}
+
 function openTaskModal(taskId, prefillTitle){
   const task = taskId ? taskById(taskId) : null;
   document.getElementById('task-modal-title').textContent = task ? 'Editar tarefa' : 'Nova tarefa';
@@ -1173,6 +1236,17 @@ function openTaskModal(taskId, prefillTitle){
   }
   syncDateDisplay('task-due-date', 'task-due-date-display', 'dd/mm/aaaa', false);
   syncDateDisplay('task-due-time', 'task-due-time-display', '--:--', true);
+  // dias da semana da repeticao: usa o que ja foi escolhido antes, ou (se a
+  // tarefa repete semanalmente e ainda nao tem dia nenhum marcado) parte do
+  // dia da semana do vencimento, pra nao mudar o comportamento de tarefas
+  // recorrentes antigas ate o dia em que alguem mexer nesse campo.
+  let initialDays = task && Array.isArray(task.recurrenceDays) ? task.recurrenceDays : [];
+  if(!initialDays.length && (task ? task.recurrence : document.getElementById('task-recurrence').value) === 'weekly'){
+    const dueVal = document.getElementById('task-due-date').value;
+    if(dueVal) initialDays = [new Date(dueVal + 'T00:00:00').getDay()];
+  }
+  setWeekdayPicker(initialDays);
+  updateWeekdayFieldVisibility();
   fillColumnOptions(task ? task.columnId : columns[0].id);
   document.getElementById('task-delete-btn').style.display = task ? 'inline-block' : 'none';
   document.getElementById('task-modal-bg').classList.add('show');
@@ -1192,6 +1266,7 @@ async function saveTask(){
   const urgency = document.getElementById('task-urgency').value || 'media';
   const recurrence = document.getElementById('task-recurrence').value || null;
   const category = document.getElementById('task-category').value || null;
+  const recurrenceDays = (recurrence === 'weekly' && getWeekdayPicker().length) ? getWeekdayPicker() : null;
   let dueAt = null;
   if(dateVal){
     dueAt = new Date(dateVal + 'T' + (timeVal || '00:00') + ':00').toISOString();
@@ -1204,14 +1279,14 @@ async function saveTask(){
     const before = Object.assign({}, task);
     const columnChanged = task.columnId !== columnId;
     const dueChanged = task.dueAt !== dueAt;
-    Object.assign(task, { title, note, columnId, dueAt, urgency, recurrence, category, updatedAt: new Date().toISOString() });
+    Object.assign(task, { title, note, columnId, dueAt, urgency, recurrence, recurrenceDays, category, updatedAt: new Date().toISOString() });
     if(columnChanged) task.movedAt = new Date().toISOString();
     if(dueChanged){ task.notifiedDue = false; task.notifiedOverdue = false; }
     applyColumnCompletion(task, columnId);
     rollback = () => { Object.assign(task, before); tasks.length = tasksBefore; };
   } else {
     const now = new Date().toISOString();
-    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, recurrence, category, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
+    const newTask = { id: uid('t'), title, note, columnId, dueAt, urgency, recurrence, recurrenceDays, category, createdAt: now, movedAt: now, notifiedDue: false, notifiedOverdue: false };
     tasks.push(newTask);
     applyColumnCompletion(newTask, columnId);
     rollback = () => { tasks.length = tasksBefore; };
@@ -1459,6 +1534,21 @@ function bindStaticEvents(){
 
   document.getElementById('task-due-date').addEventListener('change', () => syncDateDisplay('task-due-date', 'task-due-date-display', 'dd/mm/aaaa', false));
   document.getElementById('task-due-time').addEventListener('change', () => syncDateDisplay('task-due-time', 'task-due-time-display', '--:--', true));
+
+  document.getElementById('task-recurrence').addEventListener('change', () => {
+    updateWeekdayFieldVisibility();
+    // ao trocar pra "Semanalmente" sem nenhum dia marcado ainda, ja parte
+    // do dia da semana do vencimento (se tiver um), pra nao obrigar a
+    // marcar de novo algo que a data já diz.
+    if(document.getElementById('task-recurrence').value === 'weekly' && !getWeekdayPicker().length){
+      const dueVal = document.getElementById('task-due-date').value;
+      if(dueVal) setWeekdayPicker([new Date(dueVal + 'T00:00:00').getDay()]);
+    }
+  });
+  document.getElementById('task-weekday-picker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.weekday-btn');
+    if(btn) btn.classList.toggle('on');
+  });
 
   document.getElementById('category-filter-select').addEventListener('change', (e) => { categoryFilter = e.target.value; render(); });
 
