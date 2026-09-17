@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="Atividades">
 <title>Atividades</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%2316233F%22/><path d=%22M7 12l3 3 7-7%22 stroke=%22%236FA8DC%22 stroke-width=%222.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -451,8 +453,9 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
 /*
   App pessoal de gestão de atividades. Kanban simples: colunas configuráveis,
@@ -478,6 +481,12 @@ const _fbApp = initializeApp(_fbConfig);
 const _fbDB = getFirestore(_fbApp);
 const _fbAuth = getAuth(_fbApp);
 const DOC_REF = doc(_fbDB, 'atividades_app', 'main');
+
+// Chave pública (VAPID) do Cloud Messaging deste projeto Firebase. Gerada
+// em Project Settings > Cloud Messaging > Web Push certificates > Generate
+// key pair. Só a chave pública fica aqui (é pra ficar no código do
+// cliente mesmo, não é segredo); sem ela, getToken() não funciona.
+const VAPID_KEY = "COLE_AQUI_A_CHAVE_PUBLICA_VAPID_DO_FIREBASE";
 
 function uid(prefix){ return (prefix||'x') + Date.now() + Math.floor(Math.random()*100000); }
 
@@ -1294,6 +1303,10 @@ function initNotifications(){
   if(Notification.permission === 'default'){
     const dismissed = localStorage.getItem('atividades_notif_dismissed');
     if(!dismissed) document.getElementById('notif-banner').classList.add('show');
+  } else if(Notification.permission === 'granted'){
+    // já tinha concedido antes: garante que o token de push deste
+    // aparelho/navegador continua registrado e atualizado no Firestore.
+    setupPushNotifications();
   }
   updateNotifIcon();
 }
@@ -1308,11 +1321,49 @@ async function requestNotifPermission(){
   document.getElementById('notif-banner').classList.remove('show');
   if(perm === 'granted'){
     new Notification('Notificações ativadas', { body: 'Vamos te avisar quando uma tarefa vencer ou atrasar.' });
+    setupPushNotifications();
   }
 }
 function notify(title, body){
   if(!('Notification' in window) || Notification.permission !== 'granted') return;
   try { new Notification(title, { body, icon: 'icon-192.png' }); } catch(err){}
+}
+
+// ---- push (funciona com a aba fechada) -------------------------------
+// Registra o service worker do Cloud Messaging, pega o token deste
+// aparelho/navegador e salva no Firestore. Quem manda a notificação de
+// verdade quando a tarefa vence é o GitHub Actions (scripts/check-and-
+// notify.mjs), rodando de tempos em tempos na nuvem, sem depender de
+// ninguém com o app aberto; aqui só cadastra o "endereço" (token) desse
+// aparelho pra ele saber pra quem mandar.
+let _pushSetupDone = false;
+async function setupPushNotifications(){
+  if(_pushSetupDone) return;
+  if(!('serviceWorker' in navigator)) return;
+  if(VAPID_KEY === 'COLE_AQUI_A_CHAVE_PUBLICA_VAPID_DO_FIREBASE'){
+    console.warn('[Atividades] Falta colar a VAPID_KEY pra notificação por push funcionar com o app fechado.');
+    return;
+  }
+  try{
+    const supported = await isMessagingSupported();
+    if(!supported) return;
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    const messaging = getMessaging(_fbApp);
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if(token){
+      await _fbInit();
+      await setDoc(DOC_REF, { fcmTokens: arrayUnion(token) }, { merge: true });
+    }
+    // mensagem chegando com a aba aberta em primeiro plano: o navegador não
+    // mostra sozinho (isso só acontece em segundo plano), então mostra aqui.
+    onMessage(messaging, (payload) => {
+      const n = payload.notification || {};
+      notify(n.title || 'Produtividade', n.body || '');
+    });
+    _pushSetupDone = true;
+  }catch(err){
+    console.warn('[Atividades] Não deu pra registrar notificação por push neste navegador:', err && (err.code || err.message) || err);
+  }
 }
 async function checkDueNotifications(){
   if(!('Notification' in window) || Notification.permission !== 'granted') return;

@@ -1,0 +1,9 @@
+{
+  "name": "produtividade-check-and-notify",
+  "private": true,
+  "type": "module",
+  "description": "Roda no GitHub Actions (fora do navegador) pra avisar por notificação quando uma tarefa vencer ou atrasar, mesmo com o app fechado em todo mundo.",
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

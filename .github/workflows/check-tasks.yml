@@ -1,0 +1,33 @@
+name: Verifica tarefas e notifica
+
+# Roda a cada 10 minutos, mesmo com ninguém com o app aberto em lugar
+# nenhum (computador desligado, celular sem o navegador aberto etc.). É
+# esse agendamento que garante o aviso mesmo "com o computador desligado".
+# O GitHub Actions não garante pontualidade exata em repositórios pouco
+# movimentados, então pode atrasar alguns minutos vez ou outra.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixa o repositório
+        uses: actions/checkout@v4
+
+      - name: Configura Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instala dependências
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      - name: Verifica tarefas vencendo/atrasando e notifica
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node check-and-notify.mjs
