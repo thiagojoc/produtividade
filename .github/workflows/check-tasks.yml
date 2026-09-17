@@ -8,7 +8,15 @@ name: Verifica tarefas e notifica
 on:
   schedule:
     - cron: '*/10 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'teste_push manda uma notificação agora pra todo mundo que já ativou, sem checar tarefa nenhuma (só pra confirmar que a entrega funciona com o app fechado)'
+        type: choice
+        default: normal
+        options:
+          - normal
+          - teste_push
 
 jobs:
   check:
@@ -30,4 +38,5 @@ jobs:
         working-directory: scripts
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TEST_PUSH: ${{ github.event.inputs.modo == 'teste_push' && 'true' || 'false' }}
         run: node check-and-notify.mjs

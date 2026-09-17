@@ -27,6 +27,35 @@ const db = admin.firestore();
 const docRef = db.doc('atividades_app/main');
 const OVERDUE_AFTER_MS = 5 * 60 * 1000; // mesmo prazo usado no index.html
 
+// Modo de teste (workflow_dispatch com input "modo: teste_push"): manda uma
+// notificação de verdade agora mesmo, pra qualquer token salvo, sem
+// depender de nenhuma tarefa estar vencendo. Serve só pra confirmar que a
+// entrega do push funciona de ponta a ponta (service worker, FCM) com o
+// app fechado, sem mexer em nenhuma tarefa real.
+const TEST_PUSH = process.env.TEST_PUSH === 'true';
+
+async function sendAndReport(tokens, title, body){
+  const res = await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: { title, body },
+    webpush: { fcmOptions: { link: 'https://thiagojoc.github.io/produtividade/' } }
+  });
+  const invalidTokens = new Set();
+  res.responses.forEach((r, i) => {
+    if(!r.success){
+      const code = r.error && r.error.code;
+      if(code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token'){
+        invalidTokens.add(tokens[i]);
+      }
+      console.warn('Falha ao enviar pro token terminado em ...' + tokens[i].slice(-8) + ':', code || (r.error && r.error.message) || r.error);
+    } else {
+      console.log('Enviado com sucesso pro token terminado em ...' + tokens[i].slice(-8) + '.');
+    }
+  });
+  console.log('Enviado "' + title + '": ' + res.successCount + '/' + tokens.length + ' com sucesso.');
+  return invalidTokens;
+}
+
 async function main(){
   const snap = await docRef.get();
   if(!snap.exists){
@@ -40,6 +69,17 @@ async function main(){
 
   if(!tokens.length){
     console.log('Nenhum token de notificação salvo ainda (ninguém ativou as notificações num navegador/celular).');
+    return;
+  }
+  console.log(tokens.length + ' token(s) salvo(s) no momento.');
+
+  if(TEST_PUSH){
+    console.log('Modo de teste: mandando notificação agora, sem checar tarefas.');
+    const invalidTokens = await sendAndReport(tokens, 'Teste de notificação', 'Se isso chegou com o app fechado, o push está funcionando.');
+    if(invalidTokens.size){
+      await docRef.set({ fcmTokens: tokens.filter(tk => !invalidTokens.has(tk)) }, { merge: true });
+      console.log('Removendo ' + invalidTokens.size + ' token(s) inválido(s)/expirado(s).');
+    }
     return;
   }
 
@@ -69,21 +109,8 @@ async function main(){
 
   const invalidTokens = new Set();
   for(const msg of pendingMessages){
-    const res = await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: { title: msg.title, body: msg.body },
-      webpush: { fcmOptions: { link: 'https://thiagojoc.github.io/produtividade/' } }
-    });
-    res.responses.forEach((r, i) => {
-      if(!r.success){
-        const code = r.error && r.error.code;
-        if(code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token'){
-          invalidTokens.add(tokens[i]);
-        }
-        console.warn('Falha ao enviar pra um token:', code || (r.error && r.error.message) || r.error);
-      }
-    });
-    console.log('Enviado "' + msg.title + '": ' + res.successCount + '/' + tokens.length + ' com sucesso.');
+    const invalid = await sendAndReport(tokens, msg.title, msg.body);
+    invalid.forEach(tk => invalidTokens.add(tk));
   }
 
   const update = { tasks };
