@@ -7,10 +7,11 @@
 // GitHub Actions.
 //
 // Usa os mesmos campos e a mesma regra de negócio do index.html
-// (notifiedDue, notifiedOverdue, prazo de 5 minutos pra virar "atrasada"),
-// pra nunca duplicar aviso: quem marcar o campo primeiro (o navegador
-// aberto de alguém ou esse script) já resolve pros dois lados, porque o
-// dado é sincronizado pelo mesmo documento no Firestore.
+// (notifiedReminder com reminderMinutes antes do vencimento, notifiedDue,
+// notifiedOverdue com prazo de 5 minutos pra virar "atrasada"), pra nunca
+// duplicar aviso: quem marcar o campo primeiro (o navegador aberto de
+// alguém ou esse script) já resolve pros dois lados, porque o dado é
+// sincronizado pelo mesmo documento no Firestore.
 import admin from 'firebase-admin';
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -26,6 +27,14 @@ admin.initializeApp({
 const db = admin.firestore();
 const docRef = db.doc('atividades_app/main');
 const OVERDUE_AFTER_MS = 5 * 60 * 1000; // mesmo prazo usado no index.html
+const URGENCY_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+// corpo da notificação: mesma regra do index.html, sempre mostra a
+// urgência e a nota/descrição da tarefa quando tiver uma.
+function notificationBody(t, fallback){
+  const urgencyLabel = URGENCY_LABELS[t.urgency] || 'Média';
+  return 'Urgência: ' + urgencyLabel + ' · ' + (t.note || fallback);
+}
 
 // Modo de teste (workflow_dispatch com input "modo: teste_push"): manda uma
 // notificação de verdade agora mesmo, pra qualquer token salvo, sem
@@ -92,12 +101,16 @@ async function main(){
     if(doneColIds.has(t.columnId)) return;
     const due = new Date(t.dueAt).getTime();
     if(Number.isNaN(due)) return;
+    if(t.reminderMinutes && !t.notifiedReminder && now >= due - t.reminderMinutes * 60 * 1000){
+      pendingMessages.push({ title: 'Daqui a ' + t.reminderMinutes + ' min: ' + t.title, body: notificationBody(t, 'Está quase na hora.') });
+      t.notifiedReminder = true;
+    }
     if(!t.notifiedDue && now >= due){
-      pendingMessages.push({ title: 'Chegou a hora: ' + t.title, body: t.note || 'Essa tarefa venceu agora.' });
+      pendingMessages.push({ title: 'Chegou a hora: ' + t.title, body: notificationBody(t, 'Essa tarefa venceu agora.') });
       t.notifiedDue = true;
     }
     if(!t.notifiedOverdue && now >= due + OVERDUE_AFTER_MS){
-      pendingMessages.push({ title: 'Tarefa atrasada: ' + t.title, body: t.note || 'Já passou do prazo.' });
+      pendingMessages.push({ title: 'Tarefa atrasada: ' + t.title, body: notificationBody(t, 'Já passou do prazo.') });
       t.notifiedOverdue = true;
     }
   });
